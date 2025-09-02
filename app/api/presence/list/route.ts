@@ -1,21 +1,28 @@
-import { NextResponse } from "next/server";
-import { PrismaClient } from "@prisma/client";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const prisma = new PrismaClient();
-const STALE_MS = 2 * 60 * 1000;
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 
-export async function GET(req: Request) {
-  const { searchParams } = new URL(req.url);
-  const room = searchParams.get("room");
-  if (!room) return NextResponse.json({ error: "room required" }, { status: 400 });
+export async function GET(req: NextRequest) {
+  const url = new URL(req.url);
+  const room = (url.searchParams.get("room") || "").toLowerCase().trim();
+  if (!room) return NextResponse.json({ error: "missing_room" }, { status: 400 });
 
-  const cutoff = new Date(Date.now() - STALE_MS);
+  // Only show users active in the last 30s
+  const cutoff = new Date(Date.now() - 30_000);
 
-  // Only show recent heartbeats
   const list = await prisma.presence.findMany({
     where: { room, lastSeen: { gte: cutoff } },
     orderBy: { username: "asc" },
+    select: { username: true, userId: true, lastSeen: true },
   });
 
-  return NextResponse.json({ users: list.map(p => ({ username: p.username, rtcUid: p.rtcUid })) });
+  return NextResponse.json({
+    users: list.map((u) => ({
+      username: u.username,
+      userId: u.userId,
+      lastSeen: u.lastSeen.toISOString(),
+    })),
+  });
 }
