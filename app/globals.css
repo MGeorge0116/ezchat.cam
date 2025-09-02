@@ -1,42 +1,171 @@
+/* layout */
+.room-layout {
+  display: grid;
+  grid-template-columns: 260px 1fr 380px;
+  gap: 12px;
+  padding: 12px;
+}
+
+/* user list */
+.userlist__title { font-weight: 700; margin-bottom: 8px; }
+.userlist__scroll { max-height: calc(100vh - 220px); overflow: auto; }
+.userlist__item {
+  width: 100%; display: grid; grid-template-columns: 36px 1fr auto;
+  align-items: center; gap: 8px; padding: 6px; border-radius: 6px;
+  background: rgba(255,255,255,0.04); margin-bottom: 6px;
+}
+.userlist__item[aria-pressed="true"] { outline: 1px solid rgba(255,255,255,0.2); }
+.userlist__avatar { width: 28px; height: 28px; border-radius: 50%; background:#333; }
+.userlist__name { font-weight: 600; }
+.badge { margin-left: 6px; font-size: 11px; opacity:.8; }
+.pill { font-size: 11px; padding: 2px 6px; border-radius: 999px; margin-right: 6px; }
+.pill--on { background: rgba(60,200,120,.15); border: 1px solid rgba(60,200,120,.35); }
+.pill--off{ background: rgba(200,60,60,.12); border: 1px solid rgba(200,60,60,.35); }
+.userlist__actions .mini-btn { margin-left: 4px; padding: 2px 6px; border-radius: 4px; }
+
+/* chat */
+.chatpane { display: flex; flex-direction: column; height: 100%; }
+.chatpane__title { font-weight: 700; margin-bottom: 8px; }
+.chatpane__scroll {
+  flex: 1; overflow: auto; background: rgba(255,255,255,0.03);
+  border-radius: 6px; padding: 8px;
+}
+.chatmsg { margin-bottom: 8px; line-height: 1.35; }
+.chatmsg__who { font-weight: 700; margin-right: 8px; opacity: .85; }
+.chatpane__input { display: flex; gap: 8px; margin-top: 8px; }
+
+/* ---------- Theme Variables ---------- */
+/* Default to dark; ThemeToggle will set [data-theme] on <html> */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+/* DARK THEME */
+html[data-theme='dark'] {
+  --bg:#0f1318;
+  --bg-2:#0c1014;
+  --panel:#121820;
+  --muted:#8891a1;
+  --text:#e6e9ef;
+  --edge:#222833;
+  --btn:#1a2230;
+  --btn-edge:#2a3444;
+  --btn-hover:#202a39;
+  --link:#a8c1ff;
+
+  /* Promoted pill */
+  --promo-gradient: linear-gradient(0deg, #2c0f12, #2c0f12) padding-box,
+                    linear-gradient(#3d1115, #1c0a0c) border-box;
+  --promo-border:#4a1519;
+  --promo-text:#f1c9cb;
+  --promo-link:#ffb4b7;
+}
+
+/* LIGHT THEME */
+html[data-theme='light'] {
+  --bg:#ffffff;
+  --bg-2:#f6f7f9;
+  --panel:#f8fafc;
+  --muted:#6b7280;
+  --text:#0f172a;
+  --edge:#e5e7eb;
+  --btn:#f3f4f6;
+  --btn-edge:#d1d5db;
+  --btn-hover:#e5e7eb;
+  --link:#2563eb;
+
+  /* Promoted pill (soft rose) */
+  --promo-gradient: linear-gradient(0deg, #fde8e8, #fde8e8) padding-box,
+                    linear-gradient(#f6c9c9, #edb7b7) border-box;
+  --promo-border:#e7b2b2;
+  --promo-text:#7a282a;
+  --promo-link:#a23e43;
+}
+
+/* Respect system preference on first load if no saved choice yet */
+@media (prefers-color-scheme: light) {
+  :root:not([data-has-theme]) {
+    color-scheme: light;
   }
 }
 
-html,
+/* ---------- Resets / Base ---------- */
+*{ box-sizing:border-box; }
+html, body { height:100%; }
 body {
-  max-width: 100vw;
-  overflow-x: hidden;
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  line-height:1.4;
 }
 
-body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+/* ---------- Site Header (shows on every page) ---------- */
+.site-nav{
+  position:sticky; top:0; z-index:20;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:10px 16px; background:var(--bg-2); border-bottom:1px solid var(--edge);
+}
+.brand{display:flex; align-items:center; gap:10px; font-weight:600}
+.brand .logo{width:18px; height:18px; background:#ff7a1a; border-radius:4px; box-shadow:0 0 0 1px #0005 inset}
+.brand .title{color:#0f172a; color:var(--text)}
+.brand .subtitle{color:var(--muted); font-weight:500; font-size:12px; margin-left:8px}
+.toolbar{display:flex; align-items:center; gap:8px}
+
+/* Shared buttons (user + toggle + page buttons) */
+.btn{
+  background:var(--btn); border:1px solid var(--btn-edge); color:var(--text);
+  padding:8px 12px; border-radius:8px; font-weight:600; font-size:14px;
+  display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+}
+.btn:hover{ background:var(--btn-hover); }
+.btn .caret{opacity:.7}
+
+/* Toggle-specific */
+.toggle-icon{ font-size:16px; line-height:1; }
+
+/* ---------- Footer (site-wide) ---------- */
+.footer{margin-top:48px; border-top:1px solid var(--edge); background:var(--bg-2)}
+.foot-inner{max-width:980px; margin:0 auto; padding:16px; color:var(--muted); font-size:13px}
+.foot-links{display:flex; gap:10px; align-items:center; margin-bottom:10px}
+.foot-links a{color:var(--link); text-decoration:none}
+.foot-links a:hover{text-decoration:underline}
+.copyright{color:var(--muted)}
+
+/* ---------- Small screens ---------- */
+@media (max-width:540px){
+  .btn{ padding:6px 10px; }
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+/* --- Global footer styles --- */
+.site-footer {
+  border-top: 1px solid var(--edge);
+  background: var(--bg-2);
+  padding: 16px 0 22px;
+  text-align: center;                  /* center everything */
+  color: var(--muted);
+  font-size: 13px;
 }
 
-a {
-  color: inherit;
+.foot-links {
+  display: inline-flex;                /* naturally centers with text-align:center */
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.foot-links a {
+  color: var(--link);
   text-decoration: none;
+  font-weight: 500;
 }
+.foot-links a:hover { text-decoration: underline; }
 
-@media (prefers-color-scheme: dark) {
-  html {
-    color-scheme: dark;
-  }
+.foot-links .sep { color: var(--edge); }
+
+.link-disabled {
+  color: var(--muted);
+  opacity: .7;
+  cursor: default;
+  pointer-events: none;                /* make Donate unclickable */
 }

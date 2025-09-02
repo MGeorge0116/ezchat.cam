@@ -1,0 +1,11 @@
+[
+  {
+    "id": "13717bb0-bfc2-4c57-8fd2-b29f0431d9be",
+    "username": "Seymour",
+    "usernameLower": "seymour",
+    "email": "SeymourEZChat@gmail.com",
+    "emailLower": "seymourezchat@gmail.com",
+    "passwordHash": "$2b$10$q0xHqd6CmSedoP41/GptweSFQ.yJu4darqHuJDw0ljAzFFkwChV2C",
+    "createdAt": "2025-09-01T03:03:44.230Z"
+  }
+]

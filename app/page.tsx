@@ -1,95 +1,52 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+'use client';
 
-export default function Home() {
+import React from 'react';
+
+export default function HomePage() {
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+    <div className="page">
+      <main className="wrap">
+        <section className="section">
+          <div className="section-header">
+            <h2 className="section-title">Promoted Rooms</h2>
+            <button className="btn" onClick={() => alert('Open promote flow…')}>Promote</button>
+          </div>
+          <div className="promoted">
+            No promoted rooms yet.{' '}
+            <a
+              href="#"
+              onClick={(e) => {
+                e.preventDefault();
+                alert('Open promote flow…');
+              }}
+            >
+              Promote
+            </a>{' '}
+            yours to appear here.
+          </div>
+        </section>
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
+        <section className="section">
+          <div className="section-header">
+            <h2 className="section-title">Active Chatrooms</h2>
+            <button className="btn" onClick={() => location.reload()}>Refresh</button>
+          </div>
+          <div className="empty">No active rooms.</div>
+        </section>
       </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+
+      <style jsx>{`
+        .wrap{max-width:980px;margin:24px auto;padding:0 16px}
+        .section{margin-bottom:24px}
+        .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+        .section-title{font-size:20px;font-weight:700}
+        .btn{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:var(--btn);border:1px solid var(--btn-edge);color:var(--text);border-radius:8px;font-weight:600;cursor:pointer}
+        .btn:hover{background:var(--btn-hover)}
+        .promoted{background:var(--promo-gradient);border:1px solid var(--promo-border);border-radius:10px;padding:12px 14px;color:var(--promo-text);box-shadow:inset 0 1px 0 #0001;font-size:14px}
+        .promoted a{color:var(--promo-link);font-weight:600;text-decoration:none}
+        .promoted a:hover{text-decoration:underline}
+        .empty{color:var(--muted);font-size:14px;padding:12px 2px}
+      `}</style>
     </div>
   );
 }
