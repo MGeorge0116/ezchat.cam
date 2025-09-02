@@ -1,28 +1,18 @@
-// web/lib/auth.ts
 import type { NextAuthConfig } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
-import { PrismaClient } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-/** Prisma singleton (HMR-safe in dev) */
-const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
-export const prisma =
-  globalForPrisma.prisma ?? new PrismaClient({ log: ["warn", "error"] });
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
-
-/** Look up by username OR email */
+/** Find by username OR email */
 async function findUser(identifier: string) {
   const isEmail = identifier.includes("@");
-  if (isEmail) return prisma.user.findUnique({ where: { email: identifier } });
-  return prisma.user.findUnique({ where: { username: identifier } });
+  if (isEmail) return prisma.user.findUnique({ where: { email: identifier.toLowerCase() } });
+  return prisma.user.findUnique({ where: { username: identifier.toLowerCase() } });
 }
 
-export const authConfig = {
+export const authConfig: NextAuthConfig = {
   session: { strategy: "jwt" },
-  pages: {
-    signIn: "/auth/login",
-    error: "/auth/error",
-  },
+  pages: { signIn: "/auth/login", error: "/auth/error" },
   providers: [
     Credentials({
       name: "Credentials",
@@ -31,8 +21,8 @@ export const authConfig = {
         password: { label: "Password", type: "password" },
       },
       authorize: async (creds) => {
-        const identifier = creds?.identifier?.toString().trim();
-        const password = creds?.password?.toString();
+        const identifier = creds?.identifier?.toString().trim() ?? "";
+        const password = creds?.password?.toString() ?? "";
         if (!identifier || !password) return null;
 
         const user = await findUser(identifier);
@@ -41,18 +31,13 @@ export const authConfig = {
         const ok = await bcrypt.compare(password, user.passwordHash);
         if (!ok) return null;
 
-        // include username so the header can show "<username> (email)"
-        const ageVerifiedISO = user.ageVerifiedAt
-          ? new Date(user.ageVerifiedAt).toISOString()
-          : undefined;
-
         return {
           id: user.id,
           email: user.email,
-          name: user.name ?? user.username,
+          name: user.username,
           username: user.username,
-          ageVerifiedAt: ageVerifiedISO,
-        };
+          ageVerifiedAt: user.ageVerifiedAt?.toISOString?.(),
+        } as any;
       },
     }),
   ],
@@ -69,7 +54,6 @@ export const authConfig = {
     },
     async session({ session, token }) {
       (session as any).userId = (token as any).uid;
-      // extend session.user with username
       (session.user as any) = {
         ...(session.user || {}),
         email: (token as any).email,
@@ -80,4 +64,4 @@ export const authConfig = {
       return session;
     },
   },
-} satisfies NextAuthConfig;
+};
