@@ -1,4 +1,5 @@
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import {
@@ -8,29 +9,23 @@ import {
 } from "@/lib/directoryStore";
 
 /**
- * Supports BOTH styles:
- *   1) Dynamic params: /api/directory/rooms/:name/member/:uid/thumb
- *   2) Query params :  /api/directory/rooms/member/thumb?name=...&uid=...
+ * GET  /api/directory/rooms/member/thumb?name=<room>&uid=<userId>
+ * POST /api/directory/rooms/member/thumb?name=<room>&uid=<userId>
+ *   Body: { dataUrl: 'data:image/png;base64,...' }
  */
 
-function readNameUid(req: NextRequest, ctx?: { params?: Record<string, string> }) {
+function readNameUid(req: NextRequest) {
   const url = new URL(req.url);
-  const nameParam = ctx?.params?.name ?? url.searchParams.get("name") ?? "";
-  const uidParam = ctx?.params?.uid ?? url.searchParams.get("uid") ?? "";
-  const name = decodeURIComponent(nameParam);
-  const uid = decodeURIComponent(uidParam);
+  const name = decodeURIComponent(url.searchParams.get("name") || "");
+  const uid = decodeURIComponent(url.searchParams.get("uid") || "");
   return { name, uid };
 }
 
-export async function GET(
-  req: NextRequest,
-  ctx: { params?: { name?: string; uid?: string } }
-) {
-  const { name, uid } = readNameUid(req, ctx);
-
+export async function GET(req: NextRequest) {
+  const { name, uid } = readNameUid(req);
   if (!name || !uid) {
     return NextResponse.json(
-      { error: "Missing required parameters: name and uid" },
+      { error: "Missing required query params: name and uid" },
       { status: 400 }
     );
   }
@@ -62,15 +57,11 @@ export async function GET(
   });
 }
 
-export async function POST(
-  req: NextRequest,
-  ctx: { params?: { name?: string; uid?: string } }
-) {
-  const { name, uid } = readNameUid(req, ctx);
-
+export async function POST(req: NextRequest) {
+  const { name, uid } = readNameUid(req);
   if (!name || !uid) {
     return NextResponse.json(
-      { error: "Missing required parameters: name and uid" },
+      { error: "Missing required query params: name and uid" },
       { status: 400 }
     );
   }
