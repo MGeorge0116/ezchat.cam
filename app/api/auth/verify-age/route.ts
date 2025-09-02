@@ -1,32 +1,23 @@
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authConfig } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { SESSION_COOKIE, verifyToken } from "@/lib/session";
 
-export async function POST() {
-  const session = await getServerSession(authConfig);
+export async function POST(req: NextRequest) {
+  // Read your custom session cookie and verify the JWT
+  const token = req.cookies.get(SESSION_COOKIE)?.value ?? "";
+  const payload = verifyToken(token);
 
-  // prefer userId from JWT (set in callbacks), fallback to email
-  const userId = (session as any)?.userId as string | undefined;
-  const email = session?.user?.email as string | undefined;
-
-  if (!userId && !email) {
+  if (!payload?.uid) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  if (userId) {
-    await prisma.user.update({
-      where: { id: String(userId) },
-      data: { ageVerifiedAt: new Date() },
-    });
-  } else {
-    await prisma.user.update({
-      where: { email: String(email) },
-      data: { ageVerifiedAt: new Date() },
-    });
-  }
+  await prisma.user.update({
+    where: { id: String(payload.uid) },
+    data: { ageVerifiedAt: new Date() },
+  });
 
   return NextResponse.json({ ok: true });
 }
