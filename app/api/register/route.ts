@@ -1,40 +1,58 @@
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { prisma } from "@/lib/prisma";
 
-export async function POST(req: Request) {
+function isEmail(s: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
+}
+
+export async function POST(req: NextRequest) {
   try {
-    const { email, username, password } = await req.json();
+    const body = (await req.json().catch(() => ({}))) as {
+      username?: string;
+      email?: string;
+      password?: string;
+    };
 
-    if (
-      !email ||
-      !username ||
-      !password ||
-      typeof email !== "string" ||
-      typeof username !== "string" ||
-      typeof password !== "string"
-    ) {
-      return new NextResponse("Invalid payload", { status: 400 });
+    const usernameRaw = (body.username || "").trim();
+    const emailRaw = (body.email || "").trim();
+    const password = (body.password || "").toString();
+
+    if (!usernameRaw || !emailRaw || !password) {
+      return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+    }
+    if (!isEmail(emailRaw)) {
+      return NextResponse.json({ error: "invalid_email" }, { status: 400 });
     }
 
-    const emailNorm = email.toLowerCase();
+    const username = usernameRaw.toLowerCase();
+    const email = emailRaw.toLowerCase();
 
-    const exists = await prisma.user.findFirst({
-      where: { OR: [{ email: emailNorm }, { username }] },
+    // Uniqueness check
+    const conflict = await prisma.user.findFirst({
+      where: { OR: [{ username }, { email }] },
+      select: { id: true },
     });
-    if (exists) {
-      return new NextResponse("Email or username already exists", { status: 409 });
+    if (conflict) {
+      return NextResponse.json({ error: "username_or_email_taken" }, { status: 409 });
     }
 
-    const hash = await bcrypt.hash(password, 12);
+    // Hash and create (NOTE: write to passwordHash, not password)
+    const passwordHash = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
-      data: { email: emailNorm, username, password: hash },
-      select: { id: true, email: true, username: true },
+      data: { email, username, passwordHash },
+      select: { id: true, email: true, username: true, createdAt: true },
     });
 
-    return NextResponse.json({ ok: true, user });
+    return NextResponse.json({ user }, { status: 201 });
   } catch (e) {
-    return new NextResponse("Server error", { status: 500 });
+    return NextResponse.json(
+      { error: (e as Error)?.message ?? "failed" },
+      { status: 400 }
+    );
   }
 }
