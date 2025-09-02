@@ -1,41 +1,47 @@
-// C:\Users\MGeor\OneDrive\Desktop\EZChat\agora-app-builder\web\lib\thumbStore.ts
+// lib/thumbStore.ts
+// Simple in-memory thumbnail store for room snapshots.
+// NOTE: This is ephemeral (resets on cold start). For production persistence,
+// back this with a DB/blob store (S3, R2, Prisma table, etc.).
 
-type Entry = { data: string; updatedAt: number };
+const roomThumbs = new Map<string, string>(); // key = normalized room name
 
-// In-memory map. For production, back this with S3/DB/Redis.
-const map = new Map<string, Entry>();
-
-export function setThumb(room: string, dataUrl: string) {
-  map.set(room, { data: dataUrl, updatedAt: Date.now() });
+function norm(name: string) {
+  return String(name || "").trim().toLowerCase();
 }
 
-export function getThumb(room: string): Entry | undefined {
-  return map.get(room);
+/** Save a room snapshot as a data URL (png/jpeg/webp). */
+export function setRoomThumb(roomName: string, dataUrl: string): void {
+  if (!/^data:image\/(png|jpeg|jpg|webp);base64,/.test(String(dataUrl))) return;
+  roomThumbs.set(norm(roomName), String(dataUrl));
 }
 
-// SVG fallback (no deps). Dark theme to match your UI.
-export function placeholderSvg(room: string, ts: number) {
-  const time = new Date(ts).toLocaleTimeString();
-  const esc = (s: string) =>
-    s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+/** Retrieve a previously saved data URL for a room (or null). */
+export function getRoomThumb(roomName: string): string | null {
+  return roomThumbs.get(norm(roomName)) ?? null;
+}
+
+/** SVG placeholder if no snapshot exists. */
+export function roomPlaceholderSvg(roomName: string): string {
+  const r = roomName?.trim() || "Room";
+  const initial = r.slice(0, 1).toUpperCase();
+  // simple hashed hue for variety
+  let hash = 0;
+  for (let i = 0; i < r.length; i++) hash = (hash * 31 + r.charCodeAt(i)) >>> 0;
+  const hue = hash % 360;
+  const bg = `hsl(${hue} 45% 20%)`;
+  const fg = `hsl(${hue} 70% 92%)`;
+
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="800" height="450" viewBox="0 0 800 450" xmlns="http://www.w3.org/2000/svg">
+<svg width="320" height="180" viewBox="0 0 320 180" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <linearGradient id="g" x1="0" x2="0" y1="0" y2="1">
-      <stop offset="0%" stop-color="#1a1a1a"/>
-      <stop offset="100%" stop-color="#0d0d0d"/>
+    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="${bg}"/>
+      <stop offset="100%" stop-color="hsl(${hue} 45% 28%)"/>
     </linearGradient>
   </defs>
-  <rect width="800" height="450" fill="url(#g)"/>
-  <text x="24" y="56" font-family="Segoe UI, Roboto, sans-serif" font-weight="600" font-size="32" fill="#f1f5f9">
-    ${esc(room)}
-  </text>
-  <text x="24" y="96" font-family="Segoe UI, Roboto, sans-serif" font-size="16" fill="#cbd5e1">
-    Live preview • ${esc(time)}
-  </text>
-  <rect x="24" y="360" width="752" height="66" rx="12" fill="#111" stroke="#2a2a2a"/>
-  <text x="40" y="402" font-family="Segoe UI, Roboto, sans-serif" font-size="18" fill="#9ca3af">
-    Waiting for snapshot…
-  </text>
+  <rect x="0" y="0" width="320" height="180" fill="url(#g)"/>
+  <circle cx="160" cy="90" r="52" fill="none" stroke="${fg}" stroke-width="6" opacity="0.8"/>
+  <text x="160" y="100" text-anchor="middle" font-family="Inter, system-ui, sans-serif"
+        font-size="56" font-weight="700" fill="${fg}">${initial}</text>
 </svg>`;
 }
