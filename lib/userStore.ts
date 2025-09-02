@@ -1,100 +1,73 @@
-// C:\Users\MGeor\OneDrive\Desktop\EZChat\agora-app-builder\web\lib\userStore.ts
-import fs from "fs";
-import path from "path";
-import bcrypt from "bcryptjs";
+import type { User } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
 
-export type User = {
-  id: string;
-  username: string;
-  usernameLower: string;
-  email: string;
-  emailLower: string;
-  passwordHash: string;
-  createdAt: string; // ISO
-};
-
-const DATA_DIR = path.join(process.cwd(), "data");
-const USERS_PATH = path.join(DATA_DIR, "users.json");
-
-function ensureDataDir() {
-  if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+/** Get by id */
+export async function getUserById(id: string): Promise<User | null> {
+  return prisma.user.findUnique({ where: { id } });
 }
 
-function loadUsers(): User[] {
-  ensureDataDir();
-  if (!fs.existsSync(USERS_PATH)) return [];
-  try {
-    const raw = fs.readFileSync(USERS_PATH, "utf8");
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
+/** Get by email (case-insensitive) */
+export async function getUserByEmail(email: string): Promise<User | null> {
+  return prisma.user.findUnique({ where: { email: email.toLowerCase() } });
+}
+
+/** Get by username (case-insensitive) */
+export async function getUserByUsername(username: string): Promise<User | null> {
+  return prisma.user.findUnique({ where: { username: username.toLowerCase() } });
+}
+
+/** Email OR username */
+export async function findByIdentifier(identifier: string): Promise<User | null> {
+  return identifier.includes("@")
+    ? getUserByEmail(identifier)
+    : getUserByUsername(identifier);
+}
+
+/** Ensure a unique username; append a counter if needed */
+export async function ensureUniqueUsername(base: string): Promise<string> {
+  const clean = base.replace(/\s+/g, "").toLowerCase() || "user";
+  let candidate = clean;
+  let i = 0;
+  // Loop until a unique username is found
+  // (We use findUnique to leverage the unique index)
+  // eslint-disable-next-line no-constant-condition
+  while (true) {
+    const exists = await prisma.user.findUnique({
+      where: { username: candidate },
+      select: { id: true },
+    });
+    if (!exists) return candidate;
+    i += 1;
+    candidate = `${clean}${i}`;
   }
 }
 
-function saveUsers(users: User[]) {
-  ensureDataDir();
-  fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2), "utf8");
+/** Create a user */
+export async function createUser(input: {
+  username: string;
+  email: string;
+  passwordHash?: string | null;
+}): Promise<User> {
+  return prisma.user.create({
+    data: {
+      username: input.username.toLowerCase(),
+      email: input.email.toLowerCase(),
+      passwordHash: input.passwordHash ?? null,
+    },
+  });
 }
 
-function normalize(s: string) {
-  return String(s || "").trim();
-}
-function lower(s: string) {
-  return normalize(s).toLowerCase();
-}
-
-export function isUsernameTaken(username: string): boolean {
-  const users = loadUsers();
-  const u = lower(username);
-  return users.some((x) => x.usernameLower === u);
-}
-
-export function isEmailTaken(email: string): boolean {
-  const users = loadUsers();
-  const e = lower(email);
-  return users.some((x) => x.emailLower === e);
-}
-
-export function getUserById(id: string): User | null {
-  const users = loadUsers();
-  return users.find((u) => u.id === id) || null;
-}
-
-export function getUserByIdentifier(identifier: string): User | null {
-  const users = loadUsers();
-  const idLower = lower(identifier);
-  // Match by email or username (case-insensitive)
-  return (
-    users.find((u) => u.emailLower === idLower) ||
-    users.find((u) => u.usernameLower === idLower) ||
-    null
-  );
-}
-
-export async function createUser(username: string, email: string, password: string): Promise<User> {
-  const users = loadUsers();
-  const id = crypto.randomUUID();
-  const passwordHash = await bcrypt.hash(password, 10);
-  const user: User = {
-    id,
-    username: normalize(username),
-    usernameLower: lower(username),
-    email: normalize(email),
-    emailLower: lower(email),
-    passwordHash,
-    createdAt: new Date().toISOString(),
-  };
-  users.push(user);
-  saveUsers(users);
-  return user;
-}
-
-export async function verifyPassword(user: User, password: string): Promise<boolean> {
-  return bcrypt.compare(password, user.passwordHash);
+/** Mark a user as age-verified */
+export async function setAgeVerified(userId: string, when = new Date()): Promise<User> {
+  return prisma.user.update({
+    where: { id: userId },
+    data: { ageVerifiedAt: when },
+  });
 }
 
 export type PublicUser = Pick<User, "id" | "username" | "email" | "createdAt">;
+
 export function toPublicUser(u: User): PublicUser {
   const { id, username, email, createdAt } = u;
   return { id, username, email, createdAt };
+}
