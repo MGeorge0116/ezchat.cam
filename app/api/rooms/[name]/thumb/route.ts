@@ -1,50 +1,44 @@
-// C:\Users\MGeor\OneDrive\Desktop\EZChat\agora-app-builder\web\app\api\rooms\[name]\thumb\route.ts
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import { getThumb, setThumb, placeholderSvg } from "../../../../../lib/thumbStore";
+import {
+  getRoomThumb,
+  setRoomThumb,
+  roomPlaceholderSvg,
+} from "@/lib/thumbStore";
 
 /**
- * GET  /api/rooms/:name/thumb
- *  -> Returns the latest snapshot (binary). Falls back to SVG placeholder.
- *
- * POST /api/rooms/:name/thumb
- *  Body: { dataUrl: "data:image/jpeg;base64,..." }
- *  -> Stores a snapshot that GET will return.
- *
- * Notes:
- * - This is in-memory storage (per server instance). For production, back with
- *   a persistent store (S3, Redis, DB). This is additive & dev-friendly.
+ * GET  /api/rooms/[name]/thumb
+ * POST /api/rooms/[name]/thumb
+ * Body (POST): { dataUrl: 'data:image/png;base64,...' }
  */
 
 export async function GET(
-  req: NextRequest,
-  ctx: { params: { name: string } }
+  _req: NextRequest,
+  { params }: { params: Promise<{ name: string }> }
 ) {
-  const name = decodeURIComponent(ctx.params.name || "").trim();
-  if (!name) {
-    return NextResponse.json({ error: "Missing room name" }, { status: 400 });
-  }
+  const { name } = await params;
+  const room = decodeURIComponent(name || "");
 
-  const found = getThumb(name);
+  const found = getRoomThumb(room);
   if (found) {
-    // found.data is a DataURL like data:image/jpeg;base64,xxxx
-    const match = /^data:(.+?);base64,(.+)$/.exec(found.data);
-    if (match) {
-      const mime = match[1];
-      const b64 = match[2];
+    const m = /^data:(.+?);base64,(.+)$/.exec(found);
+    if (m) {
+      const mime = m[1];
+      const b64 = m[2];
       const buf = Buffer.from(b64, "base64");
       return new NextResponse(buf, {
         status: 200,
         headers: {
           "Content-Type": mime,
-          "Cache-Control": "public, max-age=60", // clients still get refresh via cache-busting
+          "Cache-Control": "public, max-age=60",
         },
       });
     }
   }
 
-  // Fallback: SVG placeholder rendered with room name and updatedAt or 'live'
-  const svg = placeholderSvg(name, found?.updatedAt ?? Date.now());
+  const svg = roomPlaceholderSvg(room);
   return new NextResponse(svg, {
     status: 200,
     headers: {
@@ -56,25 +50,31 @@ export async function GET(
 
 export async function POST(
   req: NextRequest,
-  ctx: { params: { name: string } }
+  { params }: { params: Promise<{ name: string }> }
 ) {
-  const name = decodeURIComponent(ctx.params.name || "").trim();
-  if (!name) {
-    return NextResponse.json({ error: "Missing room name" }, { status: 400 });
-  }
+  const { name } = await params;
+  const room = decodeURIComponent(name || "");
 
-  // Accept JSON with { dataUrl }
   try {
-    const body = (await req.json()) as { dataUrl?: string };
-    if (!body?.dataUrl || !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(body.dataUrl)) {
+    const body = await req.json().catch(() => ({} as { dataUrl?: string }));
+    const dataUrl = body?.dataUrl;
+
+    if (
+      !dataUrl ||
+      !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(String(dataUrl))
+    ) {
       return NextResponse.json(
-        { error: "Expect JSON { dataUrl: 'data:image/...;base64,xxx' }" },
+        { error: "Expect { dataUrl: 'data:image/...;base64,xxx' }" },
         { status: 400 }
       );
     }
-    setThumb(name, body.dataUrl);
-    return NextResponse.json({ ok: true, room: name });
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || "Bad JSON" }, { status: 400 });
+
+    setRoomThumb(room, dataUrl);
+    return NextResponse.json({ ok: true });
+  } catch (e: unknown) {
+    return NextResponse.json(
+      { error: (e as Error)?.message ?? "Bad JSON" },
+      { status: 400 }
+    );
   }
 }
