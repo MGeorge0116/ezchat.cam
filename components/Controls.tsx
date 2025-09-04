@@ -2,6 +2,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { IAgoraRTC, IAgoraRTCClient } from "agora-rtc-sdk-ng"; // Assuming you're using Agora RTC SDK
 
 // ✅ Correct imports — DO NOT import reportDirectory from "../lib/agora"
 import { ensureClients, getRtcClient } from "../lib/agora";
@@ -10,8 +11,8 @@ import { reportDirectory } from "../lib/reportDirectory";
 type DeviceInfo = { deviceId: string; label: string };
 
 type Props = {
-  roomName: string;       // RTC channel
-  username: string;       // ALL CAPS elsewhere
+  roomName: string; // RTC channel
+  username: string; // ALL CAPS elsewhere
   className?: string;
   onStarted?: () => void;
   onStopped?: () => void;
@@ -33,7 +34,7 @@ export default function Controls({
   const [selectedMic, setSelectedMic] = useState<string>("");
   const [selectedCam, setSelectedCam] = useState<string>("");
 
-  const clientRef = useRef<any>(null);
+  const clientRef = useRef<IAgoraRTCClient | null>(null);
   const joiningRef = useRef(false);
 
   // ---- devices -------------------------------------------------------------
@@ -63,7 +64,11 @@ export default function Controls({
       if (isBroadcasting) t = window.setTimeout(tick, 10_000);
     };
     tick();
-    return () => t && clearTimeout(t);
+    return () => {
+      if (t !== undefined) {
+        window.clearTimeout(t);
+      }
+    };
   }, [isBroadcasting, listDevices]);
 
   // ---- start / stop --------------------------------------------------------
@@ -80,8 +85,10 @@ export default function Controls({
       if (selectedMic) await rtc?.setMicrophone?.(selectedMic);
       if (selectedCam) await rtc?.setCamera?.(selectedCam);
 
-      if (micMuted) await rtc?.muteMic?.(); else await rtc?.unmuteMic?.();
-      if (cameraOn) await rtc?.enableCamera?.(); else await rtc?.disableCamera?.();
+      if (micMuted) await rtc?.muteMic?.();
+      else await rtc?.unmuteMic?.();
+      if (cameraOn) await rtc?.enableCamera?.();
+      else await rtc?.disableCamera?.();
 
       setIsBroadcasting(true);
       onStarted?.();
@@ -93,7 +100,7 @@ export default function Controls({
           username,
           cameraOn,
           micMuted,
-        } as any);
+        });
       } catch {}
     } finally {
       joiningRef.current = false;
@@ -109,7 +116,7 @@ export default function Controls({
       setIsBroadcasting(false);
       onStopped?.();
       try {
-        await reportDirectory?.({ action: "stop", room: roomName, username } as any);
+        await reportDirectory?.({ action: "stop", room: roomName, username });
       } catch {}
     }
   }, [roomName, username, onStopped]);
@@ -213,7 +220,7 @@ export default function Controls({
             className="max-w-[14rem] truncate rounded-xl border border-white/15 bg-transparent px-2 py-1"
             aria-label="Select Microphone"
           >
-            {mics.map(m => (
+            {mics.map((m) => (
               <option key={m.deviceId} value={m.deviceId} className="bg-black text-white">
                 {m.label}
               </option>
@@ -227,7 +234,7 @@ export default function Controls({
             className="max-w-[14rem] truncate rounded-xl border border-white/15 bg-transparent px-2 py-1"
             aria-label="Select Camera"
           >
-            {cameras.map(c => (
+            {cameras.map((c) => (
               <option key={c.deviceId} value={c.deviceId} className="bg-black text-white">
                 {c.label}
               </option>
