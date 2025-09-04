@@ -9,7 +9,7 @@
     "vercel-build": "prisma migrate deploy && next build"
   },
   "dependencies": {
-    "agora-token": "^1.0.0",
+    "agora-token": "2.0.5", // Updated to latest available version
     "next": "15.5.2",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
