@@ -1,76 +1,61 @@
-"use client";
+export const runtime = "nodejs";
 
-import React from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import { NextRequest } from "next/server";
+import { prisma } from "@/lib/prisma";
+import bcrypt from "bcryptjs";
 
-export default function RegisterPage() {
-  const router = useRouter();
-  const [username, setUsername] = React.useState("");
-  const [email, setEmail]     = React.useState("");
-  const [password, setPassword] = React.useState("");
-  const [over18, setOver18]   = React.useState(false);
-  const [error, setError]     = React.useState<string | null>(null);
-  const [loading, setLoading] = React.useState(false);
+function bad(msg: string, code = 400) {
+  return new Response(JSON.stringify({ error: msg }), {
+    status: code,
+    headers: { "Content-Type": "application/json" },
+  });
+}
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    if (!over18) { setError("You must confirm you are 18 or older."); return; }
+export async function POST(req: NextRequest) {
+  try {
+    const { email, username, password, isOver18 } = await req.json();
 
-    setLoading(true);
-    const res = await fetch("/api/auth/register", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, email, password, over18 }),
+    // Basic validation
+    const em = String(email || "").trim().toLowerCase();
+    const un = String(username || "").trim().toLowerCase();
+    const pw = String(password || "");
+    const over18 = Boolean(isOver18);
+
+    if (!em) return bad("Email is required.");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) return bad("Invalid email.");
+    if (!un) return bad("Username is required.");
+    if (!/^[a-z0-9._-]{3,32}$/.test(un)) return bad("Username must be 3–32 chars (a–z, 0–9, . _ -).");
+    if (pw.length < 8) return bad("Password must be at least 8 characters.");
+    if (!over18) return bad("You must confirm you are 18 or older.");
+
+    // Uniqueness checks
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email: em }, { username: un }] },
+      select: { id: true, email: true, username: true },
     });
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setLoading(false);
-      setError(data?.error || "Registration failed");
-      return;
+    if (existing) {
+      if (existing.email === em) return bad("Email already in use.", 409);
+      if (existing.username === un) return bad("Username already taken.", 409);
+      return bad("Account already exists.", 409);
     }
 
-    const login = await signIn("credentials", {
-      identifier: email, password, redirect: false, callbackUrl: "/",
+    const passwordHash = await bcrypt.hash(pw, 12);
+
+    const user = await prisma.user.create({
+  data: {
+    username: username.toLowerCase(),
+    email: email.toLowerCase(),
+    passwordHash,
+  },
+});
+
+
+    return new Response(JSON.stringify({ ok: true, user }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
     });
-
-    setLoading(false);
-    if (login?.ok) router.push("/");
-    else setError("Registered but sign-in failed—try logging in.");
+  } catch (err: any) {
+    console.error("register error:", err);
+    return bad("Unexpected error.", 500);
   }
-
-  return (
-    <main className="wrap" style={{ maxWidth: 460 }}>
-      <h1 style={{ margin: "16px 0 12px" }}>Register</h1>
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
-        <input
-          type="text" required placeholder="Username"
-          value={username} onChange={(e) => setUsername(e.target.value)}
-          style={{ padding:10, borderRadius:8, border:"1px solid var(--edge)", background:"var(--panel)", color:"var(--text)" }}
-        />
-        <input
-          type="email" required placeholder="Email"
-          value={email} onChange={(e) => setEmail(e.target.value)}
-          style={{ padding:10, borderRadius:8, border:"1px solid var(--edge)", background:"var(--panel)", color:"var(--text)" }}
-        />
-        <input
-          type="password" required placeholder="Password"
-          value={password} onChange={(e) => setPassword(e.target.value)}
-          style={{ padding:10, borderRadius:8, border:"1px solid var(--edge)", background:"var(--panel)", color:"var(--text)" }}
-        />
-
-        <label style={{ display:"flex", alignItems:"center", gap:8, fontSize:14, color:"var(--muted)" }}>
-          <input type="checkbox" checked={over18} onChange={(e)=>setOver18(e.target.checked)} />
-          I confirm that I am 18 years of age or older.
-        </label>
-
-        <button className="btn" disabled={loading} type="submit">
-          {loading ? "Creating account…" : "Create account"}
-        </button>
-        {error && <div style={{ color:"#fca5a5" }}>{error}</div>}
-      </form>
-    </main>
-  );
 }

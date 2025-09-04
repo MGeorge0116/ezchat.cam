@@ -1,52 +1,41 @@
-// web/components/ThemeToggle.tsx
-'use client';
+// components/ThemeToggle.tsx
+"use client";
 
-import React from 'react';
+import { useEffect, useState } from "react";
 
-type Theme = 'light' | 'dark';
-
+/**
+ * Simple theme toggle:
+ * - Applies 'dark' class to <html> and stores preference in localStorage.
+ * - Button label shows the mode you will switch TO (matches your screenshot).
+ */
 export default function ThemeToggle() {
-  const [mounted, setMounted] = React.useState(false);
-  const [theme, setTheme] = React.useState<Theme>('dark');
+  const [isDark, setIsDark] = useState(false);
 
-  // On mount, pick saved theme or system preference
-  React.useEffect(() => {
-    const saved = (localStorage.getItem('theme') as Theme | null);
-    const preferred: Theme =
-      saved ??
-      (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches
-        ? 'light'
-        : 'dark');
-
-    setTheme(preferred);
-    const html = document.documentElement;
-    html.setAttribute('data-theme', preferred);
-    html.setAttribute('data-has-theme', '1'); // mark that we chose a theme
-    setMounted(true);
+  useEffect(() => {
+    // Initialize from localStorage or system preference
+    const stored = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
+    const prefersDark = typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches;
+    const startDark = stored ? stored === "dark" : prefersDark;
+    setIsDark(startDark);
+    document.documentElement.classList.toggle("dark", startDark);
+    document.documentElement.setAttribute("data-theme", startDark ? "dark" : "light");
   }, []);
 
   const toggle = () => {
-    const next: Theme = theme === 'dark' ? 'light' : 'dark';
-    setTheme(next);
-    const html = document.documentElement;
-    html.setAttribute('data-theme', next);
-    html.setAttribute('data-has-theme', '1');
-    localStorage.setItem('theme', next);
+    const next = !isDark;
+    setIsDark(next);
+    document.documentElement.classList.toggle("dark", next);
+    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
+    localStorage.setItem("theme", next ? "dark" : "light");
   };
 
-  const label = theme === 'dark' ? 'Light' : 'Dark';
-  const icon = theme === 'dark' ? '☀️' : '🌙';
-
-  // Avoid mismatched icon during SSR
   return (
     <button
-      className="btn"
-      aria-pressed={theme === 'dark' ? 'true' : 'false'}
-      title="Toggle theme"
       onClick={toggle}
+      className="rounded-md border border-slate-300/70 dark:border-white/20 px-3 py-1 text-sm bg-white/60 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20"
+      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
     >
-      <span className="toggle-icon" aria-hidden>{mounted ? icon : '🌓'}</span>
-      <span>{mounted ? `${label} Mode` : 'Theme'}</span>
+      {isDark ? "Light Mode" : "Dark Mode"}
     </button>
   );
 }

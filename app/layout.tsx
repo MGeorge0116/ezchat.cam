@@ -1,58 +1,50 @@
-// web/app/layout.tsx
+// app/layout.tsx
 import "./globals.css";
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import Link from "next/link";
-
-import Providers from "../components/Providers";
-import ThemeToggle from "../components/ThemeToggle";
-import AuthMenu from "../components/AuthMenu";
-import Footer from "../components/Footer";
-
-const inter = Inter({ subsets: ["latin"] });
+import type { Metadata } from "next";
+import ThemeToggle from "@/components/ThemeToggle";
+import AuthMenu from "@/components/AuthMenu";
+import RoomControlsAgent from "@/components/RoomControlsAgent"; // ⬅️ add this
 
 export const metadata: Metadata = {
-  title: "EZChat.Cam",
-  description: "webcam chat",
+  title: "EZCam.Chat",
+  description: "EZCam video chat",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>
-        <Providers>
-          {/* Top header */}
-          <header
-            style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 40,
-              background: "var(--bg)",
-              borderBottom: "1px solid var(--edge)",
-            }}
-          >
-            <div className="wrap" style={{ display: "flex", alignItems: "center", gap: 12, padding: "10px 0" }}>
-              <Link href="/" className="brand" style={{ fontWeight: 700, textDecoration: "none", color: "var(--text)" }}>
-                <span style={{ display: "inline-block", width: 10, height: 10, borderRadius: 3, background: "#f59e0b", marginRight: 8 }} />
-                EZChat.Cam
-              </Link>
-              <Link href="/" style={{ color: "var(--muted)", fontSize: 12, textDecoration: "none" }}>
-                webcam chat
-              </Link>
-
-              <div style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-                <ThemeToggle />
-                <AuthMenu />
-              </div>
+    <html lang="en" suppressHydrationWarning>
+      <body className="min-h-screen flex flex-col bg-white text-slate-900 dark:bg-[#0b1220] dark:text-slate-100 antialiased">
+        {/* Header */}
+        <header className="sticky top-0 z-40 border-b border-slate-200/70 dark:border-white/10 bg-white/80 dark:bg-[#0b1220]/80 backdrop-blur">
+          <div className="h-14 px-2 sm:px-3 flex items-center justify-between">
+            <Link href="/" aria-label="EZCam.Chat home" className="flex items-center gap-2 no-underline">
+              <img src="/ezcam-logo.svg" alt="EZCam.Chat" className="h-6 w-6" />
+              <span className="text-xl font-extrabold tracking-wide">EZCam.Chat</span>
+            </Link>
+            <div className="flex items-center gap-3">
+              <ThemeToggle />
+              <AuthMenu />
             </div>
-          </header>
+          </div>
+        </header>
 
-          {/* Page content */}
-          <main>{children}</main>
+        {/* Keep this as-is (pages manage their own width). min-h-0 lets children stretch to footer */}
+        <main className="flex-1 min-h-0 mx-auto max-w-6xl w-full px-4 py-6">{children}</main>
 
-          {/* Centered footer on every page */}
-          <Footer />
-        </Providers>
+        <footer className="border-t border-slate-200/70 dark:border-white/10">
+          <div className="mx-auto max-w-6xl px-4 py-6 text-center text-sm">
+            <div className="flex items-center justify-center gap-4">
+              <span className="opacity-40 select-none cursor-not-allowed">Donate</span>
+              <Link href="/privacy">Privacy Policy</Link>
+              <Link href="/terms">Terms of Service</Link>
+            </div>
+            <div className="mt-2 opacity-70">© {new Date().getFullYear()} EZCam.Chat. All Rights Reserved.</div>
+          </div>
+        </footer>
+
+        {/* Invisible helper that wires the buttons, camera, and mic */}
+        <RoomControlsAgent />
       </body>
     </html>
   );

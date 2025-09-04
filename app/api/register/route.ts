@@ -1,58 +1,84 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-import { NextRequest, NextResponse } from "next/server";
+// app/api/auth/register/route.ts
+import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
-function isEmail(s: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s);
-}
-
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => ({}))) as {
-      username?: string;
-      email?: string;
-      password?: string;
-    };
+    // Parse body once
+    const body = await req.json();
+    const usernameRaw = typeof body.username === "string" ? body.username.trim() : "";
+    const emailRaw = typeof body.email === "string" ? body.email.trim() : "";
+    const passwordRaw = typeof body.password === "string" ? body.password : "";
+    const ageVerified = Boolean(body.ageVerified);
 
-    const usernameRaw = (body.username || "").trim();
-    const emailRaw = (body.email || "").trim();
-    const password = (body.password || "").toString();
-
-    if (!usernameRaw || !emailRaw || !password) {
-      return NextResponse.json({ error: "missing_fields" }, { status: 400 });
+    // Basic validation
+    if (!usernameRaw || !emailRaw || !passwordRaw) {
+      return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
-    if (!isEmail(emailRaw)) {
-      return NextResponse.json({ error: "invalid_email" }, { status: 400 });
+    if (!ageVerified) {
+      return NextResponse.json(
+        { error: "You must confirm you are 18 or older." },
+        { status: 400 }
+      );
+    }
+    if (passwordRaw.length < 6) {
+      return NextResponse.json(
+        { error: "Password must be at least 6 characters." },
+        { status: 400 }
+      );
     }
 
+    // Normalize
     const username = usernameRaw.toLowerCase();
     const email = emailRaw.toLowerCase();
 
-    // Uniqueness check
-    const conflict = await prisma.user.findFirst({
-      where: { OR: [{ username }, { email }] },
-      select: { id: true },
+    // Check for existing user by email OR username
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email }, { username }] },
+      select: { id: true, email: true, username: true },
     });
-    if (conflict) {
-      return NextResponse.json({ error: "username_or_email_taken" }, { status: 409 });
+    if (existing) {
+      const field = existing.email === email ? "email" : "username";
+      return NextResponse.json(
+        { error: `That ${field} is already registered.` },
+        { status: 400 }
+      );
     }
 
-    // Hash and create (NOTE: write to passwordHash, not password)
-    const passwordHash = await bcrypt.hash(password, 10);
+    // Hash password
+    const passwordHash = await bcrypt.hash(passwordRaw, 10);
 
+    // Create user (⚠️ expects your Prisma User model has: email, username, passwordHash)
     const user = await prisma.user.create({
-      data: { email, username, passwordHash },
-      select: { id: true, email: true, username: true, createdAt: true },
+      data: {
+        username,
+        email,
+        passwordHash,
+        // If your schema includes this field, you may add it back:
+        // ageVerifiedAt: new Date(),
+      },
+      select: { id: true },
     });
 
-    return NextResponse.json({ user }, { status: 201 });
-  } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error)?.message ?? "failed" },
-      { status: 400 }
-    );
+    return NextResponse.json({ success: true, userId: user.id }, { status: 200 });
+  } catch (err: unknown) {
+    // Handle known Prisma errors (e.g., duplicate key race)
+    if (err && typeof err === "object" && "code" in (err as any)) {
+      const pErr = err as Prisma.PrismaClientKnownRequestError;
+      if (pErr.code === "P2002") {
+        // Unique constraint violation
+        const meta = (pErr.meta as any) || {};
+        const target = Array.isArray(meta.target) ? meta.target.join(", ") : "field";
+        return NextResponse.json(
+          { error: `An account with that ${target} already exists.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    console.error("Registration error details:", err);
+    return NextResponse.json({ error: "Internal Server Error" }, { status: 500 });
   }
 }

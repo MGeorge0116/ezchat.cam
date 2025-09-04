@@ -1,160 +1,137 @@
+// components/RoomSnapshot.tsx
 "use client";
 
-import React from "react";
-import AgoraRTC, { IAgoraRTCClient, IRemoteUser } from "agora-rtc-sdk-ng";
-
-const APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID!;
+import React, { useEffect, useRef } from "react";
+import AgoraRTC, {
+  IAgoraRTCClient,
+  IAgoraRTCRemoteUser,
+} from "agora-rtc-sdk-ng";
+import { ensureClients, getRtcClient } from "@/lib/agora";
+import { pushMemberSnapshot } from "@/lib/reportDirectory";
 
 type Props = {
-  room: string;
-  className?: string; // Tailwind classes for size (square)
-  intervalMs?: number; // default 10s
+  channelName: string;
+  intervalMs?: number; // how often to capture a snapshot for the active remote user(s)
 };
 
 /**
- * RoomSnapshot
- * - Every interval (default 10s), briefly joins the channel (no publish),
- *   subscribes to the first remote VIDEO it finds, draws a single frame to a <canvas>,
- *   then leaves. Keeps resource usage low while giving fresh snapshots.
+ * Lightweight utility that listens for remote user video,
+ * attaches it to a hidden <video>, and periodically pushes
+ * a snapshot to the directory for thumbnails.
  */
-export default function RoomSnapshot({
-  room,
-  className,
-  intervalMs = 10_000,
-}: Props) {
-  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
-  const [tick, setTick] = React.useState(0);
-  const hostRef = React.useRef<HTMLDivElement | null>(null);
-  const [visible, setVisible] = React.useState(false);
+export default function RoomSnapshot({ channelName, intervalMs = 60_000 }: Props) {
+  const clientRef = useRef<IAgoraRTCClient | null>(null);
+  const videoHostRef = useRef<HTMLDivElement | null>(null);
+  const timers = useRef<Map<string, number>>(new Map()); // uid -> intervalId
+  const containerRef = useRef<HTMLDivElement | null>(null);
 
-  // Only run snapshots when visible
-  React.useEffect(() => {
-    const el = hostRef.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        const e = entries[0];
-        setVisible(e.isIntersecting && e.intersectionRatio > 0.25);
-      },
-      { threshold: [0, 0.25, 0.5, 1] }
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, []);
-
-  // Timer
-  React.useEffect(() => {
-    if (!visible) return;
-    const id = setInterval(() => setTick((x) => x + 1), intervalMs);
-    // also trigger immediately the first time it becomes visible
-    setTick((x) => x + 1);
-    return () => clearInterval(id);
-  }, [visible, intervalMs]);
-
-  // Take snapshot on each tick
-  React.useEffect(() => {
-    if (!APP_ID || !room || !visible) return;
-    let cancelled = false;
+  useEffect(() => {
+    let alive = true;
 
     (async () => {
-      let client: IAgoraRTCClient | null = null;
-      let tempVideoEl: HTMLVideoElement | null = null;
+      await ensureClients();
+      if (!alive) return;
 
-      try {
-        // Get a token for the channel
-        const uid = Math.floor(Math.random() * 1e9);
-        const res = await fetch("/api/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ channel: room, uid }),
-        });
-        if (!res.ok) return;
-        const { token } = await res.json();
+      const client = getRtcClient();
+      clientRef.current = client;
 
-        client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+      const attachVideoAndStartSnapshots = (user: IAgoraRTCRemoteUser) => {
+        // Create (or reuse) a wrapper for each remote user
+        const wrap = document.createElement("div");
+        wrap.style.position = "absolute";
+        wrap.style.left = "-99999px";
+        wrap.style.width = "320px";
+        wrap.style.height = "180px";
 
-        const gotVideoOnce = new Promise<void>((resolve) => {
-          client!.on("user-published", async (user: IRemoteUser, mediaType) => {
-            if (mediaType !== "video") return;
-            await client!.subscribe(user, "video");
-            if (user.videoTrack) {
-              // Play into a hidden video element
-              tempVideoEl = document.createElement("video");
-              tempVideoEl.style.position = "fixed";
-              tempVideoEl.style.left = "-10000px";
-              document.body.appendChild(tempVideoEl);
-              user.videoTrack.play(tempVideoEl);
-              // Give it a frame then draw to canvas
-              setTimeout(() => {
-                drawToCanvas(tempVideoEl!, canvasRef.current);
-                resolve();
-              }, 200);
-            }
-          });
-        });
+        const host = document.createElement("div");
+        host.style.width = "100%";
+        host.style.height = "100%";
+        wrap.appendChild(host);
 
-        await client.join(APP_ID, room, token, uid);
+        videoHostRef.current = host;
+        containerRef.current?.appendChild(wrap);
 
-        // Subscribe to any existing remote user with video
-        for (const u of client.remoteUsers) {
-          if (u.hasVideo) {
-            await client.subscribe(u, "video");
-            if (u.videoTrack) {
-              tempVideoEl = document.createElement("video");
-              tempVideoEl.style.position = "fixed";
-              tempVideoEl.style.left = "-10000px";
-              document.body.appendChild(tempVideoEl);
-              u.videoTrack.play(tempVideoEl);
-              setTimeout(() => {
-                drawToCanvas(tempVideoEl!, canvasRef.current);
-              }, 200);
-              break;
-            }
-          }
+        user.videoTrack?.play(host);
+
+        // Find the <video> element Agora injected
+        const videoEl = wrap.querySelector("video") as HTMLVideoElement | null;
+        if (!videoEl) return;
+
+        // Initial snapshot
+        void pushMemberSnapshot(channelName, String(user.uid), videoEl);
+
+        // Periodic snapshots
+        const id = window.setInterval(() => {
+          void pushMemberSnapshot(channelName, String(user.uid), videoEl);
+        }, intervalMs);
+        timers.current.set(String(user.uid), id);
+      };
+
+      const clearUser = (user: IAgoraRTCRemoteUser) => {
+        const uid = String(user.uid);
+
+        // stop timer
+        const t = timers.current.get(uid);
+        if (t) {
+          clearInterval(t);
+          timers.current.delete(uid);
         }
 
-        // If we didn't catch a pre-existing user, wait briefly for publish event
-        if (!tempVideoEl) {
-          await Promise.race([gotVideoOnce, timeout(1500)]);
-        }
-      } catch {
-        // ignore
-      } finally {
-        // Cleanup: stop hidden video, leave channel
-        try {
-          if (tempVideoEl) {
-            tempVideoEl.srcObject = null;
-            tempVideoEl.remove();
+        // remove injected wrapper (if still present)
+        if (containerRef.current) {
+          // remove all children we created (safe cleanup)
+          while (containerRef.current.firstChild) {
+            try {
+              containerRef.current.removeChild(containerRef.current.firstChild);
+            } catch {}
           }
-          if (client) await client.leave();
-        } catch {}
-      }
+        }
+      };
+
+      const onUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
+        await client.subscribe(user, mediaType);
+        if (mediaType === "video") {
+          attachVideoAndStartSnapshots(user);
+        } else if (mediaType === "audio") {
+          user.audioTrack?.play();
+        }
+      };
+
+      const onUserUnpublished = (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
+        if (mediaType === "video") {
+          clearUser(user);
+        }
+      };
+
+      const onUserLeft = (user: IAgoraRTCRemoteUser) => clearUser(user);
+
+      client.on("user-published", onUserPublished);
+      client.on("user-unpublished", onUserUnpublished);
+      client.on("user-left", onUserLeft);
+
+      return () => {
+        client.off("user-published", onUserPublished);
+        client.off("user-unpublished", onUserUnpublished);
+        client.off("user-left", onUserLeft);
+      };
     })();
 
-    function drawToCanvas(video: HTMLVideoElement, canvas?: HTMLCanvasElement | null) {
-      if (!canvas) return;
-      const size = Math.min(video.videoWidth || 320, video.videoHeight || 240);
-      canvas.width = size;
-      canvas.height = size;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      // cover behavior to keep square crop
-      const sx = Math.max(0, (video.videoWidth - size) / 2);
-      const sy = Math.max(0, (video.videoHeight - size) / 2);
-      ctx.drawImage(video, sx, sy, size, size, 0, 0, size, size);
-    }
+    return () => {
+      alive = false;
+      // clear timers
+      timers.current.forEach((id) => clearInterval(id));
+      timers.current.clear();
+      // remove wrappers
+      if (containerRef.current) {
+        while (containerRef.current.firstChild) {
+          try {
+            containerRef.current.removeChild(containerRef.current.firstChild);
+          } catch {}
+        }
+      }
+    };
+  }, [channelName, intervalMs]);
 
-    function timeout(ms: number) {
-      return new Promise<void>((r) => setTimeout(r, ms));
-    }
-  }, [tick, room, visible]);
-
-  return (
-    <div
-      ref={hostRef}
-      className={className ?? "relative w-40 h-40 rounded overflow-hidden border border-white/10 bg-black"}
-    >
-      <canvas ref={canvasRef} className="w-full h-full block" />
-    </div>
-  );
+  // Hidden container where we mount invisible remote <video> elements
+  return <div style={{ position: "absolute", left: -99999 }} ref={containerRef} />;
 }

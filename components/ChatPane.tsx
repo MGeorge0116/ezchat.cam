@@ -1,116 +1,118 @@
-// components/ChatPane.tsx
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { getRtmChannel, getRtmClient, rtmAvailable } from "../lib/agora";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
-type Message = { text: string; senderId: string; ts: number };
+type Message = { id: string; from: "you" | "other" | "system"; text: string; ts: number };
 
-export default function ChatPane({
-  channelName,
-  localUid,
-}: {
-  channelName: string;
-  localUid: string;
-}) {
-  const [ready, setReady] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([]);
+export default function ChatPane({ room }: { room: string }) {
   const [text, setText] = useState("");
-  const scrollerRef = useRef<HTMLDivElement | null>(null);
+  const [msgs] = useState<Message[]>([
+    { id: "sys", from: "system", text: "Say hello to others in the room.", ts: Date.now() },
+  ]);
 
-  const addMsg = useCallback((m: Message) => {
-    setMessages((prev) => [...prev, m]);
+  // Light/Dark aware tokens—subtle to match your screenshot
+  const [isDark, setIsDark] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia?.("(prefers-color-scheme: dark)");
+    const apply = () => setIsDark(!!mq?.matches);
+    apply();
+    mq?.addEventListener?.("change", apply);
+    return () => mq?.removeEventListener?.("change", apply);
   }, []);
 
-  // subscribe to RTM channel events (if available)
-  useEffect(() => {
-    if (!rtmAvailable()) {
-      setReady(false);
-      return;
-    }
+  const ui = useMemo(
+    () =>
+      isDark
+        ? {
+            panelBg: "transparent",
+            panelBorder: "rgba(255,255,255,0.14)",
+            msgMuted: "rgba(255,255,255,0.75)",
+            inputBg: "rgba(255,255,255,0.06)",
+            inputBorder: "rgba(255,255,255,0.14)",
+            placeholder: "rgba(255,255,255,0.55)",
+            sendBg: "#0284c7",
+          }
+        : {
+            panelBg: "transparent",
+            panelBorder: "rgba(0,0,0,0.14)",
+            msgMuted: "rgba(0,0,0,0.70)",
+            inputBg: "rgba(0,0,0,0.04)",
+            inputBorder: "rgba(0,0,0,0.16)",
+            placeholder: "rgba(0,0,0,0.55)",
+            sendBg: "#0284c7",
+          },
+    [isDark]
+  );
 
-    const chan = getRtmChannel();
-    const client = getRtmClient();
+  // Reserved for future autoscroll
+  const scrollRef = useRef<HTMLDivElement>(null);
 
-    if (!chan || !client) {
-      setReady(false);
-      return;
-    }
-
-    const onMsg = (msg: any, senderId: string) => {
-      const text = typeof msg?.text === "string" ? msg.text : JSON.stringify(msg);
-      addMsg({ text, senderId, ts: Date.now() });
-    };
-
-    chan.on("ChannelMessage", onMsg);
-    setReady(true);
-
-    return () => {
-      try { chan.off("ChannelMessage", onMsg); } catch {}
-    };
-  }, [addMsg]);
-
-  // auto scroll
-  useEffect(() => {
-    scrollerRef.current?.scrollTo({ top: scrollerRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length]);
-
-  const send = async () => {
+  const send = () => {
     const t = text.trim();
     if (!t) return;
-    if (!rtmAvailable() || !getRtmChannel()) return;
-
-    try {
-      await getRtmChannel().sendMessage({ text: t });
-      addMsg({ text: t, senderId: localUid || "me", ts: Date.now() });
-      setText("");
-    } catch {
-      addMsg({ text: "(failed to send)", senderId: "system", ts: Date.now() });
-    }
+    // Wire up to your chat backend here if needed
+    setText("");
   };
 
-  const onKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Enter") send();
+  const onKeyDown: React.KeyboardEventHandler<HTMLInputElement> = (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      send();
+    }
   };
 
   return (
-    <div className="chatpane">
-      <div className="chatpane__title">Chat</div>
-
-      {!rtmAvailable() && (
-        <div className="muted" style={{ padding: "6px 8px" }}>
-          Channel chat isn’t available right now.
-        </div>
-      )}
-
-      <div ref={scrollerRef} className="chatpane__scroll">
-        {messages.length === 0 ? (
-          <div className="muted">Say hello to others in the room.</div>
-        ) : (
-          messages.map((m, i) => (
-            <div key={i} className="chatmsg">
-              <span className="chatmsg__who">
-                {m.senderId === localUid ? "You" : m.senderId}
-              </span>
-              <span className="chatmsg__text">{m.text}</span>
+    <div
+      className="flex h-full flex-col rounded-md"
+      style={{ backgroundColor: ui.panelBg, border: `1px solid ${ui.panelBorder}` }}
+      aria-label="Room chat"
+    >
+      {/* Messages area */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-3 pt-3">
+        {msgs.map((m) =>
+          m.from === "system" ? (
+            <div key={m.id} className="text-sm" style={{ color: ui.msgMuted }}>
+              {m.text}
             </div>
-          ))
+          ) : null
         )}
       </div>
 
-      <div className="chatpane__input">
-        <input
-          className="input"
-          placeholder={rtmAvailable() ? "Type message here" : "Chat unavailable"}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={onKey}
-          disabled={!rtmAvailable()}
-        />
-        <button className="button button--primary" onClick={send} disabled={!rtmAvailable()}>
-          Send
-        </button>
+      {/* Bottom composer — single line input + small blue Send button */}
+      <div className="px-3 pb-3">
+        <div className="flex items-center gap-2">
+          <input
+            type="text"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={onKeyDown}
+            placeholder="Type message here"
+            className="chatInput h-9 flex-1 rounded-md px-3 outline-none"
+            style={{ color: "inherit" }}
+          />
+          <button
+            onClick={send}
+            disabled={!text.trim()}
+            className={`h-9 rounded-md px-3 text-sm font-semibold text-white shadow ${
+              text.trim() ? "" : "opacity-50 cursor-not-allowed"
+            }`}
+            style={{ backgroundColor: ui.sendBg }}
+          >
+            Send
+          </button>
+        </div>
       </div>
+
+      {/* Styled-JSX to handle placeholder + input colors */}
+      <style jsx>{`
+        .chatInput {
+          background-color: ${ui.inputBg};
+          border: 1px solid ${ui.inputBorder};
+        }
+        .chatInput::placeholder {
+          color: ${ui.placeholder};
+        }
+      `}</style>
     </div>
   );
 }

@@ -1,66 +1,16 @@
+// prisma/schema.prisma
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
+// Example model (adjust to your schema)
 model User {
-  id            String    @id @default(cuid())
-  username      String    @unique
-  email         String    @unique
-  passwordHash  String?
-  createdAt     DateTime  @default(now())
-  ageVerifiedAt DateTime?
-
-  rooms    Room[]    @relation("UserRooms")
-  messages Message[]
-
-  @@index([username])
-  @@index([email])
-}
-
-model Room {
-  id         String    @id @default(cuid())
-  name       String    @unique
-  title      String?
-  ownerId    String?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-  lastSeenAt DateTime?
-
-  owner    User?     @relation("UserRooms", fields: [ownerId], references: [id])
-  messages Message[]
-
-  @@index([name])
-  @@index([ownerId])
-  @@index([lastSeenAt])
-}
-
-model Presence {
-  id       String   @id @default(cuid())
-  room     String
-  userId   String?
-  username String
-  lastSeen DateTime @default(now())
-
-  @@unique([room, username])
-  @@index([room, lastSeen])
-}
-
-model Message {
-  id        String   @id @default(cuid())
-  roomId    String
-  userId    String?
-  username  String
-  text      String
-  createdAt DateTime @default(now())
-
-  room Room  @relation(fields: [roomId], references: [id], onDelete: Cascade)
-  user User? @relation(fields: [userId], references: [id])
-
-  @@index([roomId, createdAt])
+  id    Int     @id @default(autoincrement())
+  uid   String  @unique
+  // ... other fields
 }

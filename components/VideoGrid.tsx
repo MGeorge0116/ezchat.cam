@@ -1,77 +1,94 @@
-// components/VideoGrid.tsx
+// components/Room/VideoGrid.tsx
 "use client";
 
-import { useEffect, useRef } from "react";
-import { ensureClients, getRtcClient } from "../lib/agora";
-import { pushMemberSnapshot } from "../lib/reportDirectory";
+import { useEffect, useRef, useState } from "react";
+import type { IAgoraRTCClient, ILocalVideoTrack, IRemoteVideoTrack, IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
 
-export default function VideoGrid({ channelName }: { channelName: string }) {
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const snapshotTimers = useRef<Map<string, number>>(new Map());
+type VideoTrack = {
+  type: "local" | "remote";
+  track: ILocalVideoTrack | IRemoteVideoTrack;
+  userId: string;
+};
 
+type Props = {
+  client: IAgoraRTCClient | null;
+  className?: string;
+};
+
+export default function VideoGrid({ client, className }: Props) {
+  const [tracks, setTracks] = useState<VideoTrack[]>([]);
+  const videoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+
+  // Handle local and remote tracks
   useEffect(() => {
-    let alive = true;
+    if (!client) return;
 
-    (async () => {
-      try {
-        await ensureClients(); // make sure rtc/rtm are ready
-        if (!alive) return;
-
-        const rtc = getRtcClient();
-
-        const onUserPublished = async (user: any, mediaType: any) => {
-          await rtc.subscribe(user, mediaType);
-          if (mediaType === "video") {
-            const wrap = document.createElement("div");
-            wrap.style.width = "100%";
-            wrap.style.height = "240px";
-            wrap.style.position = "relative";
-            const videoHost = document.createElement("div");
-            videoHost.style.width = "100%";
-            videoHost.style.height = "100%";
-            wrap.appendChild(videoHost);
-
-            containerRef.current?.appendChild(wrap);
-            user.videoTrack?.play(videoHost);
-
-            const videoEl = wrap.querySelector("video") as HTMLVideoElement | null;
-            if (videoEl) {
-              pushMemberSnapshot(channelName, String(user.uid), videoEl).catch(() => {});
-              const id = window.setInterval(() => {
-                pushMemberSnapshot(channelName, String(user.uid), videoEl).catch(() => {});
-              }, 60_000);
-              snapshotTimers.current.set(String(user.uid), id);
-            }
-          }
-          if (mediaType === "audio") user.audioTrack?.play();
-        };
-
-        const onUserUnpublished = (user: any, mediaType: any) => {
-          if (mediaType === "video") {
-            const id = snapshotTimers.current.get(String(user.uid));
-            if (id) { clearInterval(id); snapshotTimers.current.delete(String(user.uid)); }
-          }
-        };
-
-        rtc.on("user-published", onUserPublished);
-        rtc.on("user-unpublished", onUserUnpublished);
-
-        // Cleanup listeners on unmount
-        return () => {
-          rtc.off("user-published", onUserPublished);
-          rtc.off("user-unpublished", onUserUnpublished);
-        };
-      } catch (e) {
-        console.error(e);
+    const addLocalTrack = async () => {
+      const localTrack = client.localTracks?.find(t => t.trackMediaType === "video") as ILocalVideoTrack | undefined;
+      if (localTrack) {
+        setTracks(prev => [...prev.filter(t => t.type !== "local"), { type: "local", track: localTrack, userId: "local" }]);
       }
-    })();
+    };
+
+    const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
+      await client.subscribe(user, mediaType);
+      if (mediaType === "video" && user.videoTrack) {
+        setTracks(prev => [...prev, { type: "remote", track: user.videoTrack, userId: user.uid.toString() }]);
+      }
+    };
+
+    const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
+      setTracks(prev => prev.filter(t => t.userId !== user.uid.toString()));
+    };
+
+    client.on("user-published", handleUserPublished);
+    client.on("user-unpublished", handleUserUnpublished);
+
+    void addLocalTrack();
 
     return () => {
-      alive = false;
-      snapshotTimers.current.forEach((id) => clearInterval(id));
-      snapshotTimers.current.clear();
+      client.off("user-published", handleUserPublished);
+      client.off("user-unpublished", handleUserUnpublished);
     };
-  }, [channelName]);
+  }, [client]);
 
-  return <div ref={containerRef} />;
+  // Play video tracks
+  useEffect(() => {
+    tracks.forEach(({ track, userId }) => {
+      const videoElement = videoRefs.current.get(userId);
+      if (videoElement && track) {
+        track.play(videoElement);
+      }
+    });
+  }, [tracks]);
+
+  // Dynamic grid columns
+  const gridCols = tracks.length === 1 ? "grid-cols-1" : tracks.length === 2 ? "grid-cols-2" : "grid-cols-3";
+
+  return (
+    <div className={`flex flex-col gap-3 ${className}`}>
+      <div className={`grid gap-3 ${gridCols}`}>
+        {tracks.map(t => (
+          <div
+            key={t.userId}
+            ref={el => {
+              if (el) videoRefs.current.set(t.userId, el);
+              else videoRefs.current.delete(t.userId);
+            }}
+            className="relative aspect-video bg-black rounded-lg overflow-hidden"
+          >
+            {t.type === "local" ? (
+              <span className="absolute bottom-2 left-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                You (Local)
+              </span>
+            ) : (
+              <span className="absolute bottom-2 left-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
+                {t.userId}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
