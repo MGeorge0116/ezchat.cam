@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 interface Device {
   deviceId: string;
   label: string;
+  kind: string;
 }
 
 const Controls = () => {
@@ -18,6 +19,7 @@ const Controls = () => {
         devices.map((device) => ({
           deviceId: device.deviceId,
           label: device.label || 'Unknown',
+          kind: device.kind,
         }))
       );
     } catch (error) {
@@ -30,18 +32,18 @@ const Controls = () => {
     const tick = async () => {
       await listDevices();
     };
-    t = setInterval(tick, 1000); // Polling every second (unchanged)
+    t = setInterval(tick, 1000);
     return () => {
       if (t !== undefined) {
-        clearInterval(t); // Clear interval, returns void
+        clearInterval(t);
       }
-    }; // Cleanup returns void, fixing type error
+    };
   }, [selectedMic, selectedCam]);
 
-  // UI unchanged to preserve design and interaction
   return (
     <div>
       <select onChange={(e) => setSelectedMic(e.target.value)}>
+        <option value="">Select Microphone</option>
         {devices
           .filter((d) => d.kind === 'audioinput')
           .map((d) => (
@@ -51,6 +53,7 @@ const Controls = () => {
           ))}
       </select>
       <select onChange={(e) => setSelectedCam(e.target.value)}>
+        <option value="">Select Camera</option>
         {devices
           .filter((d) => d.kind === 'videoinput')
           .map((d) => (

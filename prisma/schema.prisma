@@ -8,9 +8,7 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Example model (adjust to your schema)
 model User {
   id    Int     @id @default(autoincrement())
   uid   String  @unique
-  // ... other fields
 }
