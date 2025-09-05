@@ -11,6 +11,8 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
     const body = await req.json().catch(() => ({} as any));
+
+    // Normalize payload keys -> `text`
     const text =
       typeof body.text === "string"
         ? body.text
@@ -20,11 +22,19 @@ export async function POST(req: Request) {
         ? body.message
         : "";
 
-    const roomSlug = String(body.room ?? body.roomSlug ?? body.slug ?? "").toLowerCase();
+    // Treat any provided room identifier as the roomId string
+    const roomId = String(
+      body.roomId ?? body.room ?? body.slug ?? ""
+    ).trim().toLowerCase();
 
-    const userIdRaw = body.userId ?? (session?.user && (session.user as any).id) ?? "";
-    const userId = String(userIdRaw).trim();
+    // User id (string in your schema)
+    const userId = String(
+      body.userId ??
+        (session?.user && (session.user as any).id) ??
+        ""
+    ).trim();
 
+    // Username (your Message model requires it)
     const username =
       String(
         body.username ??
@@ -33,26 +43,26 @@ export async function POST(req: Request) {
           ""
       ).trim() || "GUEST";
 
-    if (!text.trim()) return NextResponse.json({ error: "text is required" }, { status: 400 });
-    if (!roomSlug)   return NextResponse.json({ error: "room is required" }, { status: 400 });
-    if (!userId)     return NextResponse.json({ error: "userId is required" }, { status: 400 });
-
-    // 🔧 Use findFirst so `slug` doesn't have to be unique
-    const room = await prisma.room.findFirst({
-      where: {
-        OR: [
-          { slug: roomSlug },
-          { name: roomSlug },
-          { id: roomSlug },
-        ],
-      },
-      select: { id: true },
-    });
-    if (!room) return NextResponse.json({ error: "Room not found" }, { status: 404 });
+    if (!text) {
+      return NextResponse.json({ error: "text is required" }, { status: 400 });
+    }
+    if (!roomId) {
+      return NextResponse.json({ error: "roomId is required" }, { status: 400 });
+    }
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    }
 
     const message = await prisma.message.create({
-      data: { text, userId, roomId: room.id, username },
-      select: { id: true, text: true, userId: true, roomId: true, username: true, createdAt: true },
+      data: { text, userId, roomId, username },
+      select: {
+        id: true,
+        text: true,
+        userId: true,
+        roomId: true,
+        username: true,
+        createdAt: true,
+      },
     });
 
     return NextResponse.json({ message }, { status: 201 });
