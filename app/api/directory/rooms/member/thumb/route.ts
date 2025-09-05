@@ -5,22 +5,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 /**
  * GET /api/directory/rooms/member/thumb?data=<dataURL>
- * or
+ *    or
  * GET /api/directory/rooms/member/thumb?b64=<base64>&mime=image/png
  *
- * Returns the image bytes with the correct Content-Type.
+ * Responds with the decoded image bytes and correct Content-Type.
  */
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
     const qp = url.searchParams;
 
-    // Accept either a data URL (?data=data:...;base64,...) or raw base64 (?b64=...&mime=...)
+    // Accept either a data URL or raw base64 + mime
     const dataUrl = qp.get("data") ?? qp.get("src") ?? "";
     const b64 = qp.get("b64");
     const mimeParam = qp.get("mime") ?? "image/png";
 
-    let arrayBuffer: ArrayBuffer;
+    let blob: Blob;
     let mime: string;
 
     if (dataUrl && dataUrl.startsWith("data:")) {
@@ -30,17 +30,16 @@ export async function GET(req: NextRequest) {
       }
       mime = m[1];
       const buf = Buffer.from(m[2], "base64");
-      // Convert Node Buffer -> ArrayBuffer view for Web Response
-      arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      blob = new Blob([buf], { type: mime });
     } else if (b64) {
       mime = mimeParam;
       const buf = Buffer.from(b64, "base64");
-      arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+      blob = new Blob([buf], { type: mime });
     } else {
       return NextResponse.json({ error: "Missing image data" }, { status: 400 });
     }
 
-    return new NextResponse(arrayBuffer, {
+    return new NextResponse(blob, {
       status: 200,
       headers: {
         "Content-Type": mime,
