@@ -11,14 +11,16 @@ export async function POST(req: Request) {
     const session = await getServerSession(authOptions);
 
     const body = await req.json().catch(() => ({} as any));
-    const content =
+    // Normalize payload keys -> `text`
+    const text =
       typeof body.text === "string"
         ? body.text
         : typeof body.content === "string"
         ? body.content
+        : typeof body.message === "string"
+        ? body.message
         : "";
 
-    // Prefer body.userId; otherwise use the authenticated user's id
     const userIdRaw =
       body.userId ??
       (session?.user && (session.user as any).id) ??
@@ -26,16 +28,16 @@ export async function POST(req: Request) {
 
     const userId = String(userIdRaw).trim();
 
-    if (!content.trim()) {
-      return NextResponse.json({ error: "content is required" }, { status: 400 });
+    if (!text.trim()) {
+      return NextResponse.json({ error: "text is required" }, { status: 400 });
     }
     if (!userId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
 
     const message = await prisma.message.create({
-      data: { content, userId }, // ✅ userId is a string
-      select: { id: true, content: true, userId: true, createdAt: true },
+      data: { text, userId }, // ✅ use `text` (matches your Prisma model)
+      select: { id: true, text: true, userId: true, createdAt: true },
     });
 
     return NextResponse.json({ message }, { status: 201 });
