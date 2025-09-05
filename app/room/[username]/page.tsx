@@ -1,79 +1,70 @@
 // app/room/[username]/page.tsx
-import React from "react";
-import DeviceSelectors from "@/components/DeviceSelectors";
+export const runtime = "nodejs";
 
-type Props = { params: { username: string } };
+import type { Metadata } from "next";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-export default function RoomPage({ params: { username } }: Props) {
-  const TITLE = (username ?? "").toUpperCase();
+// ⬇️ Use RELATIVE imports so the page builds even if '@/*' alias isn't working
+import UsersList from "../../../components/UsersList";
+import VideoGrid from "../../../components/VideoGrid";
+import DeviceSelectors from "../../../components/DeviceSelectors";
+import Controls from "../../../components/Controls";
+import ChatMessages from "../../../components/ChatMessages";
+import ChatInput from "../../../components/ChatInput";
+
+export const metadata: Metadata = { title: "Room • EZCam.Chat" };
+
+export default async function RoomPage({ params }: { params: { username: string } }) {
+  const session = await getServerSession(authOptions);
+
+  const roomSlug = (params.username || "").toLowerCase();
+  const roomTitle = roomSlug.toUpperCase();
+
+  const sessionUser =
+    ((session?.user as any)?.username as string | undefined) ||
+    (session?.user?.email ? session.user.email.split("@")[0] : undefined) ||
+    "GUEST";
 
   return (
-    // Full-bleed and full-height so columns reach the footer
-    <div className="relative left-1/2 right-1/2 -ml-[50vw] -mr-[50vw] w-screen h-full my-[-1.5rem]">
-      <div className="h-full grid gap-3 px-0 lg:grid-cols-[8rem,1fr,22rem] md:grid-cols-1">
-        {/* USERS (left) */}
-        <aside className="panel h-full flex flex-col overflow-hidden rounded-l-none">
-          <div className="px-3 py-2 border-b border-white/10 text-xs font-semibold tracking-wide uppercase text-white/70 text-center">
-            Users
-          </div>
-          <div className="flex-1 overflow-auto px-3 py-2">
-            <ul className="space-y-1 text-xs">
-              <li className="list-disc list-inside">SEYMOUR (you)</li>
-            </ul>
-          </div>
-        </aside>
-
-        {/* VIDEO (center) */}
-        <section className="panel h-full flex flex-col overflow-hidden">
-          {/* HEADER: title left, device selects right */}
-          <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10">
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-widest">{TITLE}</h1>
-
-            {/* Camera & Mic dropdowns pinned on the right */}
-            <DeviceSelectors />
-          </header>
-
-          {/* Video grid area grows to fill space */}
-          <div className="flex-1 p-2 overflow-hidden">
-            {/* <VideoGrid className="h-full w-full" /> */}
-            <div className="h-full grid place-items-center opacity-70 text-sm">
-              Your video grid mounts here.
-            </div>
-          </div>
-
-          {/* Controls just above footer */}
-          <div className="mt-auto border-t border-white/10 bg-[#0b1220]/70 backdrop-blur-sm">
-            <div className="flex justify-center gap-3 p-3">
-              <button className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-500 font-semibold">
-                Stop Broadcasting
-              </button>
-              <button className="px-4 py-2 rounded-xl bg-emerald-600/90 hover:bg-emerald-500 font-semibold">
-                Camera On/Off
-              </button>
-              <button className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 font-semibold">
-                Mute Microphone
-              </button>
-            </div>
+    <div className="h-full min-h-0">
+      <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[260px,minmax(0,1fr),360px] gap-4">
+        {/* LEFT: USERS */}
+        <section aria-labelledby="users-title" className="panel col-start-1 row-start-1 row-span-3 h-full min-h-0 overflow-y-auto p-3">
+          <h2 id="users-title" className="text-center text-xs font-semibold tracking-widest opacity-70">USERS</h2>
+          <div className="mt-2">
+            <UsersList room={roomSlug} />
           </div>
         </section>
 
-        {/* CHAT (right) */}
-        <aside className="panel h-full flex flex-col overflow-hidden rounded-r-none">
-          <div className="px-4 py-3 border-b border-white/10 text-sm font-semibold tracking-wide uppercase text-white/70 text-center">
-            Chat
+        {/* MIDDLE: VIDEO */}
+        <section aria-labelledby="video-title" className="panel col-start-1 md:col-start-2 row-start-2 md:row-start-1 row-span-3 flex h-full min-h-0 flex-col p-3">
+          <div className="flex items-center justify-between">
+            <h2 id="video-title" className="select-none text-2xl font-extrabold tracking-wide">{roomTitle}</h2>
+            <div className="flex items-center gap-2">
+              <DeviceSelectors />
+            </div>
           </div>
-          <div className="flex-1 overflow-auto p-3">
-            <div className="text-xs opacity-70 mb-2">No messages yet.</div>
+
+          <div className="mt-3 flex-1 min-h-0 overflow-hidden rounded-xl border border-white/10 p-3">
+            <VideoGrid roomName={roomSlug} />
           </div>
-          <form className="border-t border-white/10 p-3 flex gap-2">
-            <input
-              type="text"
-              placeholder="Type a message..."
-              className="flex-1 rounded-md bg-white/5 border border-white/10 px-3 py-2 outline-none focus:ring-2 focus:ring-white/20"
-            />
-            <button className="rounded-md px-3 py-2 bg-white/10 hover:bg-white/20">Send</button>
-          </form>
-        </aside>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <Controls roomName={roomSlug} username={sessionUser} />
+          </div>
+        </section>
+
+        {/* RIGHT: CHAT */}
+        <section aria-labelledby="chat-title" className="panel col-start-1 md:col-start-3 row-start-3 md:row-start-1 row-span-3 flex h-full min-h-0 flex-col p-3">
+          <h2 id="chat-title" className="text-center text-xs font-semibold tracking-widest opacity-70">CHAT</h2>
+          <div className="mt-2 flex-1 min-h-0 overflow-y-auto rounded-lg border border-white/10 p-3">
+            <ChatMessages room={roomSlug} />
+          </div>
+          <div className="mt-3">
+            <ChatInput room={roomSlug} username={sessionUser} />
+          </div>
+        </section>
       </div>
     </div>
   );
