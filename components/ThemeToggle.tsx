@@ -3,39 +3,64 @@
 
 import { useEffect, useState } from "react";
 
+type Props = { className?: string; title?: string };
+
 /**
- * Simple theme toggle:
- * - Applies 'dark' class to <html> and stores preference in localStorage.
- * - Button label shows the mode you will switch TO (matches your screenshot).
+ * Dependency-free theme toggle:
+ * - Persists to localStorage("theme")
+ * - Toggles `dark` on <html>
+ * - Defaults to dark
+ * - Avoids hydration mismatch by initializing on mount
  */
-export default function ThemeToggle() {
-  const [isDark, setIsDark] = useState(false);
+export default function ThemeToggle({ className, title }: Props) {
+  const [mounted, setMounted] = useState(false);
+  const [isDark, setIsDark] = useState(true);
 
   useEffect(() => {
-    // Initialize from localStorage or system preference
-    const stored = typeof window !== "undefined" ? localStorage.getItem("theme") : null;
-    const prefersDark = typeof window !== "undefined" && window.matchMedia?.("(prefers-color-scheme: dark)").matches;
-    const startDark = stored ? stored === "dark" : prefersDark;
-    setIsDark(startDark);
-    document.documentElement.classList.toggle("dark", startDark);
-    document.documentElement.setAttribute("data-theme", startDark ? "dark" : "light");
+    const root = document.documentElement;
+    const stored = localStorage.getItem("theme");
+    let nextDark = true;
+
+    if (stored === "light") nextDark = false;
+    else if (stored === "dark") nextDark = true;
+    else if (root.classList.contains("dark")) nextDark = true;
+    else if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) nextDark = true;
+
+    setIsDark(nextDark);
+    setMounted(true);
   }, []);
 
-  const toggle = () => {
-    const next = !isDark;
-    setIsDark(next);
-    document.documentElement.classList.toggle("dark", next);
-    document.documentElement.setAttribute("data-theme", next ? "dark" : "light");
-    localStorage.setItem("theme", next ? "dark" : "light");
-  };
+  useEffect(() => {
+    if (!mounted) return;
+    const root = document.documentElement;
+    if (isDark) root.classList.add("dark");
+    else root.classList.remove("dark");
+    localStorage.setItem("theme", isDark ? "dark" : "light");
+  }, [isDark, mounted]);
+
+  if (!mounted) {
+    return (
+      <button
+        type="button"
+        aria-label="Toggle theme"
+        title={title ?? "Toggle theme"}
+        className={`rounded-xl border border-white/20 px-2 py-2 ${className ?? ""}`}
+      >
+        🌓
+      </button>
+    );
+  }
 
   return (
     <button
-      onClick={toggle}
-      className="rounded-md border border-slate-300/70 dark:border-white/20 px-3 py-1 text-sm bg-white/60 dark:bg-white/10 hover:bg-white/80 dark:hover:bg-white/20"
-      title={isDark ? "Switch to Light Mode" : "Switch to Dark Mode"}
+      type="button"
+      onClick={() => setIsDark((v) => !v)}
+      aria-label="Toggle theme"
+      title={title ?? (isDark ? "Switch to light mode" : "Switch to dark mode")}
+      className={`rounded-xl border border-white/20 px-2 py-2 hover:border-white/40 active:translate-y-[0.5px] ${className ?? ""}`}
     >
-      {isDark ? "Light Mode" : "Dark Mode"}
+      <span className="sr-only">Toggle theme</span>
+      <span aria-hidden>{isDark ? "☀️" : "🌙"}</span>
     </button>
   );
 }
