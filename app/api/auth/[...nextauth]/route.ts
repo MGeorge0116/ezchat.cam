@@ -1,15 +1,12 @@
 // app/api/auth/[...nextauth]/route.ts
+export const runtime = "nodejs";
+
 import NextAuth, { NextAuthOptions } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
-import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
+import bcrypt from "bcryptjs"; // ✅ pure JS
 
 export const authOptions: NextAuthOptions = {
-  trustHost: true,
   session: { strategy: "jwt" },
   providers: [
     Credentials({
@@ -18,20 +15,21 @@ export const authOptions: NextAuthOptions = {
         email: { label: "Email", type: "text" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(creds) {
-        if (!creds?.email || !creds?.password) return null;
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
 
-        const email = creds.email.toLowerCase().trim();
-        const user = await prisma.user.findUnique({ where: { email } });
-        if (!user || !user.passwordHash) return null;
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email.toLowerCase() },
+        });
+        if (!user?.passwordHash) return null;
 
-        const ok = await bcrypt.compare(creds.password, user.passwordHash);
+        const ok = await bcrypt.compare(credentials.password, user.passwordHash);
         if (!ok) return null;
 
         return {
           id: user.id,
-          name: user.username || user.email.split("@")[0],
           email: user.email,
+          name: user.username, // keep username in session
         };
       },
     }),
@@ -39,15 +37,17 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.uid = (user as any).id;
-        token.name = user.name;
+        token.sub = user.id as string;
+        token.email = user.email as string;
+        (token as any).username = (user as any).name;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).id = token.uid as string | undefined;
-        session.user.name = token.name as string | null | undefined;
+        (session.user as any).id = token.sub;
+        session.user.email = token.email as string;
+        (session.user as any).username = (token as any).username;
       }
       return session;
     },
