@@ -1,84 +1,46 @@
+// app/api/chat/post/route.ts
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { SESSION_COOKIE, verifyToken } from "@/lib/session";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
-/**
- * POST /api/chat/post
- * Body: { room: string; text: string }
- * Auth: optional — if logged in, we store userId + username; otherwise username="guest"
- */
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body = (await req.json().catch(() => ({}))) as {
-      room?: string;
-      text?: string;
-    };
+    const session = await getServerSession(authOptions);
 
-    const room = String(body?.room ?? "").trim();
-    const text = String(body?.text ?? "").trim();
+    const body = await req.json().catch(() => ({} as any));
+    const content =
+      typeof body.text === "string"
+        ? body.text
+        : typeof body.content === "string"
+        ? body.content
+        : "";
 
-    if (!room) {
-      return NextResponse.json({ error: "missing_room" }, { status: 400 });
+    // Prefer body.userId; otherwise use the authenticated user's id
+    const userIdRaw =
+      body.userId ??
+      (session?.user && (session.user as any).id) ??
+      "";
+
+    const userId = String(userIdRaw).trim();
+
+    if (!content.trim()) {
+      return NextResponse.json({ error: "content is required" }, { status: 400 });
     }
-    if (!text) {
-      return NextResponse.json({ error: "empty_text" }, { status: 400 });
-    }
-    if (text.length > 1000) {
-      return NextResponse.json({ error: "text_too_long" }, { status: 400 });
-    }
-
-    // Resolve room id from slug/name
-    const dbRoom = await prisma.room.findUnique({
-      where: { name: room.toLowerCase() },
-      select: { id: true },
-    });
-    if (!dbRoom) {
-      return NextResponse.json({ error: "room_not_found" }, { status: 404 });
-    }
-
-    // Optional auth via our cookie
-    const token = req.cookies.get(SESSION_COOKIE)?.value ?? "";
-    const payload = verifyToken(token);
-    let userId: string | null = null;
-    let username = "guest";
-
-    if (payload?.uid) {
-      // Look up the user for a stable username
-      const user = await prisma.user.findUnique({
-        where: { id: String(payload.uid) },
-        select: { id: true, username: true },
-      });
-      if (user) {
-        userId = user.id;
-        username = user.username;
-      }
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
 
     const message = await prisma.message.create({
-      data: {
-        roomId: dbRoom.id,
-        userId,            // can be null
-        username,          // required by schema
-        text,
-      },
-      select: {
-        id: true,
-        roomId: true,
-        userId: true,
-        username: true,
-        text: true,
-        createdAt: true,
-      },
+      data: { content, userId }, // ✅ userId is a string
+      select: { id: true, content: true, userId: true, createdAt: true },
     });
 
-    return NextResponse.json({ ok: true, message });
-  } catch (e) {
-    return NextResponse.json(
-      { error: (e as Error)?.message ?? "failed" },
-      { status: 400 }
-    );
+    return NextResponse.json({ message }, { status: 201 });
+  } catch (err) {
+    console.error("chat/post error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
