@@ -1,91 +1,54 @@
+// app/api/directory/rooms/member/thumb/route.ts
 export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
-import {
-  getMemberThumb,
-  setMemberThumb,
-  memberPlaceholderSvg,
-} from "@/lib/directoryStore";
 
 /**
- * GET  /api/directory/rooms/member/thumb?name=<room>&uid=<userId>
- * POST /api/directory/rooms/member/thumb?name=<room>&uid=<userId>
- *   Body: { dataUrl: 'data:image/png;base64,...' }
+ * GET /api/directory/rooms/member/thumb?data=<dataURL>
+ * or
+ * GET /api/directory/rooms/member/thumb?b64=<base64>&mime=image/png
+ *
+ * Returns the image bytes with the correct Content-Type.
  */
-
-function readNameUid(req: NextRequest) {
-  const url = new URL(req.url);
-  const name = decodeURIComponent(url.searchParams.get("name") || "");
-  const uid = decodeURIComponent(url.searchParams.get("uid") || "");
-  return { name, uid };
-}
-
 export async function GET(req: NextRequest) {
-  const { name, uid } = readNameUid(req);
-  if (!name || !uid) {
-    return NextResponse.json(
-      { error: "Missing required query params: name and uid" },
-      { status: 400 }
-    );
-  }
-
-  const found = getMemberThumb(name, uid);
-  if (found) {
-    const m = /^data:(.+?);base64,(.+)$/.exec(found);
-    if (m) {
-      const mime = m[1];
-      const b64 = m[2];
-      const buf = Buffer.from(b64, "base64");
-      return new NextResponse(buf, {
-        status: 200,
-        headers: {
-          "Content-Type": mime,
-          "Cache-Control": "public, max-age=60",
-        },
-      });
-    }
-  }
-
-  const svg = memberPlaceholderSvg(name, uid);
-  return new NextResponse(svg, {
-    status: 200,
-    headers: {
-      "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=60",
-    },
-  });
-}
-
-export async function POST(req: NextRequest) {
-  const { name, uid } = readNameUid(req);
-  if (!name || !uid) {
-    return NextResponse.json(
-      { error: "Missing required query params: name and uid" },
-      { status: 400 }
-    );
-  }
-
   try {
-    const body = await req.json().catch(() => ({} as any));
-    const dataUrl: string | undefined = body?.dataUrl;
+    const url = new URL(req.url);
+    const qp = url.searchParams;
 
-    if (
-      !dataUrl ||
-      !/^data:image\/(png|jpeg|jpg|webp);base64,/.test(String(dataUrl))
-    ) {
-      return NextResponse.json(
-        { error: "Expect { dataUrl: 'data:image/...;base64,xxx' }" },
-        { status: 400 }
-      );
+    // Accept either a data URL (?data=data:...;base64,...) or raw base64 (?b64=...&mime=...)
+    const dataUrl = qp.get("data") ?? qp.get("src") ?? "";
+    const b64 = qp.get("b64");
+    const mimeParam = qp.get("mime") ?? "image/png";
+
+    let arrayBuffer: ArrayBuffer;
+    let mime: string;
+
+    if (dataUrl && dataUrl.startsWith("data:")) {
+      const m = dataUrl.match(/^data:([^;]+);base64,(.+)$/);
+      if (!m) {
+        return NextResponse.json({ error: "Invalid data URL" }, { status: 400 });
+      }
+      mime = m[1];
+      const buf = Buffer.from(m[2], "base64");
+      // Convert Node Buffer -> ArrayBuffer view for Web Response
+      arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    } else if (b64) {
+      mime = mimeParam;
+      const buf = Buffer.from(b64, "base64");
+      arrayBuffer = buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+    } else {
+      return NextResponse.json({ error: "Missing image data" }, { status: 400 });
     }
 
-    setMemberThumb(name, uid, dataUrl);
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json(
-      { error: e?.message || "Bad JSON" },
-      { status: 400 }
-    );
+    return new NextResponse(arrayBuffer, {
+      status: 200,
+      headers: {
+        "Content-Type": mime,
+        "Cache-Control": "public, max-age=3600, immutable",
+      },
+    });
+  } catch (err) {
+    console.error("thumb route error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
