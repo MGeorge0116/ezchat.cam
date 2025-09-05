@@ -3,9 +3,10 @@ export const runtime = "nodejs";
 
 import type { Metadata } from "next";
 import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+// Use relative import to avoid alias issues
+import { authOptions } from "../../../lib/auth";
 
-// ⬇️ Use RELATIVE imports so the page builds even if '@/*' alias isn't working
+// ⬇️ Relative imports to ensure resolution on all platforms
 import UsersList from "../../../components/UsersList";
 import VideoGrid from "../../../components/VideoGrid";
 import DeviceSelectors from "../../../components/DeviceSelectors";
@@ -15,10 +16,11 @@ import ChatInput from "../../../components/ChatInput";
 
 export const metadata: Metadata = { title: "Room • EZCam.Chat" };
 
-export default async function RoomPage({ params }: { params: { username: string } }) {
+// NOTE: use `props: any` to satisfy Next 15 PageProps checker
+export default async function RoomPage(props: any) {
   const session = await getServerSession(authOptions);
 
-  const roomSlug = (params.username || "").toLowerCase();
+  const roomSlug = (props?.params?.username ?? "").toLowerCase();
   const roomTitle = roomSlug.toUpperCase();
 
   const sessionUser =
@@ -30,17 +32,33 @@ export default async function RoomPage({ params }: { params: { username: string 
     <div className="h-full min-h-0">
       <div className="grid h-full min-h-0 grid-cols-1 md:grid-cols-[260px,minmax(0,1fr),360px] gap-4">
         {/* LEFT: USERS */}
-        <section aria-labelledby="users-title" className="panel col-start-1 row-start-1 row-span-3 h-full min-h-0 overflow-y-auto p-3">
-          <h2 id="users-title" className="text-center text-xs font-semibold tracking-widest opacity-70">USERS</h2>
+        <section
+          aria-labelledby="users-title"
+          className="panel col-start-1 row-start-1 row-span-3 h-full min-h-0 overflow-y-auto p-3"
+        >
+          <h2
+            id="users-title"
+            className="text-center text-xs font-semibold tracking-widest opacity-70"
+          >
+            USERS
+          </h2>
           <div className="mt-2">
             <UsersList room={roomSlug} />
           </div>
         </section>
 
         {/* MIDDLE: VIDEO */}
-        <section aria-labelledby="video-title" className="panel col-start-1 md:col-start-2 row-start-2 md:row-start-1 row-span-3 flex h-full min-h-0 flex-col p-3">
+        <section
+          aria-labelledby="video-title"
+          className="panel col-start-1 md:col-start-2 row-start-2 md:row-start-1 row-span-3 flex h-full min-h-0 flex-col p-3"
+        >
           <div className="flex items-center justify-between">
-            <h2 id="video-title" className="select-none text-2xl font-extrabold tracking-wide">{roomTitle}</h2>
+            <h2
+              id="video-title"
+              className="select-none text-2xl font-extrabold tracking-wide"
+            >
+              {roomTitle}
+            </h2>
             <div className="flex items-center gap-2">
               <DeviceSelectors />
             </div>
@@ -56,11 +74,21 @@ export default async function RoomPage({ params }: { params: { username: string 
         </section>
 
         {/* RIGHT: CHAT */}
-        <section aria-labelledby="chat-title" className="panel col-start-1 md:col-start-3 row-start-3 md:row-start-1 row-span-3 flex h-full min-h-0 flex-col p-3">
-          <h2 id="chat-title" className="text-center text-xs font-semibold tracking-widest opacity-70">CHAT</h2>
+        <section
+          aria-labelledby="chat-title"
+          className="panel col-start-1 md:col-start-3 row-start-3 md:row-start-1 row-span-3 flex h-full min-h-0 flex-col p-3"
+        >
+          <h2
+            id="chat-title"
+            className="text-center text-xs font-semibold tracking-widest opacity-70"
+          >
+            CHAT
+          </h2>
+
           <div className="mt-2 flex-1 min-h-0 overflow-y-auto rounded-lg border border-white/10 p-3">
             <ChatMessages room={roomSlug} />
           </div>
+
           <div className="mt-3">
             <ChatInput room={roomSlug} username={sessionUser} />
           </div>
