@@ -5,8 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start",
-    "vercel-build": "prisma migrate deploy && next build"
+    "start": "next start -p 3000",
+    "vercel-build": "next build"
   },
   "dependencies": {
     "@prisma/client": "^6.15.0",
