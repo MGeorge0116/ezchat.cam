@@ -1,21 +1,20 @@
 // lib/server/chat.ts
-// In-memory chat store + pub/sub. Survives dev hot reload via global.
+// Chat with optional Redis backing + in-memory subscribers for SSE.
 
-export type ChatMessage = {
-  id: string;
-  room: string;
-  username: string;
-  text: string;
-  ts: number; // epoch ms
-};
+import {
+  storeChatAdd,
+  storeChatHistory,
+  type StoredChatMessage,
+} from "@/lib/server/store";
+
+export type ChatMessage = StoredChatMessage;
 
 type ChatState = {
-  rooms: Map<string, ChatMessage[]>;
+  rooms: Map<string, ChatMessage[]>; // used only when Redis is not configured
   subs: Map<string, Set<(msg: ChatMessage) => void>>;
   maxPerRoom: number;
 };
 
-// Persist across hot-reloads in dev
 const g = globalThis as any;
 if (!g.__chatState) {
   g.__chatState = {
@@ -26,71 +25,46 @@ if (!g.__chatState) {
 }
 const state: ChatState = g.__chatState;
 
-function roomKey(r: string) {
-  return r.toLowerCase();
-}
+const keyRoom = (r: string) => r.toLowerCase();
 
-function findById(list: ChatMessage[], id: string) {
-  return list.find((m) => m.id === id);
-}
-
-/**
- * Add a message and notify subscribers.
- * If `clientId` is provided and a message with the same id already exists,
- * the existing message is returned and no duplicate is pushed.
- */
-export function addMessage(
+export async function addMessage(
   room: string,
   username: string,
   text: string,
   clientId?: string
-): ChatMessage {
-  const key = roomKey(room);
-  if (!state.rooms.has(key)) state.rooms.set(key, []);
-  const list = state.rooms.get(key)!;
-
-  // If client provided an id, avoid duplicates
-  if (clientId) {
-    const existing = findById(list, clientId);
-    if (existing) return existing;
-  }
-
+): Promise<ChatMessage> {
+  const rkey = keyRoom(room);
   const id = clientId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const msg: ChatMessage = {
-    id,
-    room: key,
-    username: username.toLowerCase(),
-    text,
-    ts: Date.now(),
-  };
+  const msg: ChatMessage = { id, room: rkey, username: username.toLowerCase(), text, ts: Date.now() };
 
+  // Persist in Redis if available
+  await storeChatAdd(rkey, msg);
+
+  // Also keep a tiny in-memory buffer (for non-Redis setups / local dev)
+  if (!state.rooms.has(rkey)) state.rooms.set(rkey, []);
+  const list = state.rooms.get(rkey)!;
   list.push(msg);
   if (list.length > state.maxPerRoom) list.splice(0, list.length - state.maxPerRoom);
 
-  const subs = state.subs.get(key);
-  if (subs) {
-    for (const cb of subs) {
-      try {
-        cb(msg);
-      } catch {
-        /* ignore subscriber errors */
-      }
-    }
-  }
+  // Notify SSE subscribers (works on a single long-running process, e.g., VPS)
+  const subs = state.subs.get(rkey);
+  if (subs) for (const cb of subs) { try { cb(msg); } catch {} }
 
   return msg;
 }
 
-export function getHistory(room: string, limit = 100): ChatMessage[] {
-  const key = roomKey(room);
-  const list = state.rooms.get(key) || [];
+export async function getHistory(room: string, limit = 100): Promise<ChatMessage[]> {
+  const rkey = keyRoom(room);
+  const fromRedis = await storeChatHistory(rkey, limit);
+  if (fromRedis.length > 0) return fromRedis;
+  const list = state.rooms.get(rkey) || [];
   return list.slice(Math.max(0, list.length - Math.max(1, Math.min(limit, 1000))));
 }
 
 export function subscribeChat(room: string, cb: (msg: ChatMessage) => void): () => void {
-  const key = roomKey(room);
-  if (!state.subs.has(key)) state.subs.set(key, new Set());
-  const set = state.subs.get(key)!;
+  const rkey = keyRoom(room);
+  if (!state.subs.has(rkey)) state.subs.set(rkey, new Set());
+  const set = state.subs.get(rkey)!;
   set.add(cb);
   return () => set.delete(cb);
 }

@@ -1,68 +1,70 @@
-// lib/server/presence.ts
-// In-memory presence with broadcaster flag + SSE helpers (persists across dev reloads)
+// lib/server/chat.ts
+// Chat with optional Redis backing + in-memory subscribers for SSE.
 
-export type PresenceUser = { username: string; lastSeen: number; isLive?: boolean };
+import {
+  storeChatAdd,
+  storeChatHistory,
+  type StoredChatMessage,
+} from "@/lib/server/store";
 
-type RoomMap = Map<string, PresenceUser>; // username -> entry
-type Sub = (users: PresenceUser[]) => void;
+export type ChatMessage = StoredChatMessage;
 
-type PresenceState = {
-  rooms: Map<string, RoomMap>;
-  subs: Map<string, Set<Sub>>;
+type ChatState = {
+  rooms: Map<string, ChatMessage[]>; // used only when Redis is not configured
+  subs: Map<string, Set<(msg: ChatMessage) => void>>;
+  maxPerRoom: number;
 };
 
 const g = globalThis as any;
-if (!g.__presenceState) {
-  g.__presenceState = { rooms: new Map(), subs: new Map() } as PresenceState;
+if (!g.__chatState) {
+  g.__chatState = {
+    rooms: new Map(),
+    subs: new Map(),
+    maxPerRoom: 200,
+  } as ChatState;
 }
-const state: PresenceState = g.__presenceState;
+const state: ChatState = g.__chatState;
 
 const keyRoom = (r: string) => r.toLowerCase();
-const now = () => Date.now();
 
-function roomMap(room: string): RoomMap {
-  const k = keyRoom(room);
-  if (!state.rooms.has(k)) state.rooms.set(k, new Map());
-  return state.rooms.get(k)!;
-}
-function roomSubs(room: string): Set<Sub> {
-  const k = keyRoom(room);
-  if (!state.subs.has(k)) state.subs.set(k, new Set());
-  return state.subs.get(k)!;
-}
-function prune(room: string) {
-  const m = roomMap(room);
-  const cutoff = now() - 30_000; // 30s active window
-  for (const [u, entry] of m) {
-    if (entry.lastSeen < cutoff) m.delete(u);
-  }
-}
+export async function addMessage(
+  room: string,
+  username: string,
+  text: string,
+  clientId?: string
+): Promise<ChatMessage> {
+  const rkey = keyRoom(room);
+  const id = clientId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const msg: ChatMessage = { id, room: rkey, username: username.toLowerCase(), text, ts: Date.now() };
 
-export function touch(room: string, username: string, isLive?: boolean) {
-  const m = roomMap(room);
-  const uname = username.toLowerCase();
-  const entry = m.get(uname) || { username: uname, lastSeen: now(), isLive: !!isLive };
-  entry.lastSeen = now();
-  if (typeof isLive === "boolean") entry.isLive = isLive;
-  m.set(uname, entry);
-  notify(room);
+  // Persist in Redis if available
+  await storeChatAdd(rkey, msg);
+
+  // Also keep a tiny in-memory buffer (for non-Redis setups / local dev)
+  if (!state.rooms.has(rkey)) state.rooms.set(rkey, []);
+  const list = state.rooms.get(rkey)!;
+  list.push(msg);
+  if (list.length > state.maxPerRoom) list.splice(0, list.length - state.maxPerRoom);
+
+  // Notify SSE subscribers (works on a single long-running process, e.g., VPS)
+  const subs = state.subs.get(rkey);
+  if (subs) for (const cb of subs) { try { cb(msg); } catch {} }
+
+  return msg;
 }
 
-export function list(room: string): PresenceUser[] {
-  prune(room);
-  return Array.from(roomMap(room).values()).sort((a, b) => b.lastSeen - a.lastSeen);
+export async function getHistory(room: string, limit = 100): Promise<ChatMessage[]> {
+  const rkey = keyRoom(room);
+  const fromRedis = await storeChatHistory(rkey, limit);
+  if (fromRedis.length > 0) return fromRedis;
+  const list = state.rooms.get(rkey) || [];
+  return list.slice(Math.max(0, list.length - Math.max(1, Math.min(limit, 1000))));
 }
 
-export function subscribe(room: string, cb: Sub): () => void {
-  const set = roomSubs(room);
+export function subscribeChat(room: string, cb: (msg: ChatMessage) => void): () => void {
+  const rkey = keyRoom(room);
+  if (!state.subs.has(rkey)) state.subs.set(rkey, new Set());
+  const set = state.subs.get(rkey)!;
   set.add(cb);
-  try { cb(list(room)); } catch {}
   return () => set.delete(cb);
-}
-
-export function notify(room: string) {
-  const users = list(room);
-  for (const cb of roomSubs(room)) {
-    try { cb(users); } catch {}
-  }
 }
