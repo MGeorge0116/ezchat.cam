@@ -1,4 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* (your existing styles can stay here) */
+
+
 @import "tailwindcss";
+
 
 /* Dark navy token */
 :root { --navy-950: #0b1220; }
@@ -51,3 +59,43 @@ footer:not(:last-of-type) {
 :root {
   color-scheme: dark;
 }
+
+/* App scaffolding */
+html, body {
+  height: 100%;
+}
+body {
+  @apply bg-[#0e1621] text-white;
+}
+.light body, :root:not(.dark) body {
+  @apply bg-white text-black;
+}
+
+/* basic scrollbar */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* footer spacing */
+.main-wrap {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+.main-content {
+  flex: 1 1 auto;
+}
+
+/* page frame */
+html, body { height: 100%; }
+body { @apply bg-[#0e1621] text-white; }
+.light body, :root:not(.dark) body { @apply bg-white text-black; }
+
+/* sticky footer layout */
+.main-wrap { min-height: 100dvh; display: flex; flex-direction: column; }
+.main-content { flex: 1 1 auto; }
+
+/* subtle scrollbar */
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 10px; }
+*::-webkit-scrollbar-track { background: transparent; }
