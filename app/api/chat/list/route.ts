@@ -1,35 +1,26 @@
+export const runtime = "nodejs";
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(req: Request) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const room = searchParams.get("room");
+  const url = new URL(req.url);
+  const room = url.searchParams.get("room")?.toLowerCase();
+  if (!room) return NextResponse.json({ messages: [] });
 
-    if (!room) {
-      return NextResponse.json({ error: "Missing room" }, { status: 400 });
-    }
+  const messages = await prisma.message.findMany({
+    where: { room: { name: room } },
+    orderBy: { createdAt: "asc" },
+    take: 200,
+    select: { id: true, text: true, createdAt: true, username: true },
+  });
 
-    const roomRow = await prisma.room.findUnique({
-      where: { name: room },
-      select: { id: true },
-    });
-
-    if (!roomRow) {
-      return NextResponse.json({ messages: [] });
-    }
-
-    const messages = await prisma.message.findMany({
-      where: { roomId: roomRow.id },
-      orderBy: { createdAt: "asc" },
-      take: 200,
-    });
-
-    return NextResponse.json({ messages });
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err?.message ?? "Unknown error" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    messages: messages.map((m) => ({
+      id: m.id,
+      text: m.text,
+      username: m.username,
+      createdAt: m.createdAt.toISOString(),
+    })),
+  });
 }

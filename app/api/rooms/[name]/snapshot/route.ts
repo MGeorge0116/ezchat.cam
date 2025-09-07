@@ -1,26 +1,30 @@
 // app/api/rooms/[name]/snapshot/route.ts
-import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { prisma } from "@/lib/prisma";
-import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+export const runtime = "nodejs";
 
-export async function POST(req: Request, { params }: { params: { name: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user?.email) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+// GET /api/rooms/:name/snapshot
+export async function GET(req: NextRequest) {
+  // Parse the dynamic segment from the path instead of using the typed context arg
+  const pathname = req.nextUrl?.pathname || new URL(req.url).pathname;
+  const match = pathname.match(/\/api\/rooms\/([^/]+)\/snapshot$/);
+  const slug = match ? decodeURIComponent(match[1]) : "";
+
+  if (!slug) {
+    return NextResponse.json({ error: "Missing room name" }, { status: 400 });
   }
-  const { name } = params;
-  const { email, base64 } = await req.json();
+
+  // Your Prisma model's unique key is `id`, so look up by id
   const room = await prisma.room.findUnique({
-    where: { name },
-    include: { owner: true },
+    where: { id: slug },
+    select: { ownerId: true },
   });
-  if (!room || !room.owner || room.owner.email.toLowerCase() !== email.toLowerCase()) {
-    return NextResponse.json({ error: "Unauthorized or room not found" }, { status: 403 });
+
+  if (!room) {
+    return NextResponse.json({ error: "Room not found" }, { status: 404 });
   }
-  const updated = await prisma.room.update({
-    where: { name },
-    data: { snapshotData: base64, snapshotUpdatedAt: new Date() },
-  });
-  return NextResponse.json({ ok: true });
+
+  // Keep prior API shape: echo the URL segment as `slug`
+  return NextResponse.json({ slug, ownerId: room.ownerId }, { status: 200 });
 }

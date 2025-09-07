@@ -1,94 +1,77 @@
-// components/Room/VideoGrid.tsx
-"use client";
+// File: components/VideoGrid.tsx
 
-import { useEffect, useRef, useState } from "react";
-import type { IAgoraRTCClient, ILocalVideoTrack, IRemoteVideoTrack, IAgoraRTCRemoteUser } from "agora-rtc-sdk-ng";
+'use client'
 
-type VideoTrack = {
-  type: "local" | "remote";
-  track: ILocalVideoTrack | IRemoteVideoTrack;
-  userId: string;
-};
+import React, { useMemo } from 'react'
+import VideoTile from './VideoTile'
 
-type Props = {
-  client: IAgoraRTCClient | null;
-  className?: string;
-};
+export type Tile = {
+  id: string
+  username: string
+  stream: MediaStream
+  isLocal?: boolean
+}
 
-export default function VideoGrid({ client, className }: Props) {
-  const [tracks, setTracks] = useState<VideoTrack[]>([]);
-  const videoRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+export default function VideoGrid({
+  tiles,
+  className,
+}: {
+  tiles: Tile[]
+  className?: string
+}) {
+  const count = tiles.length
 
-  // Handle local and remote tracks
-  useEffect(() => {
-    if (!client) return;
+  // Decide grid columns based on number of tiles
+  // 1 -> 1 col
+  // 2 -> 2 cols
+  // 3-4 -> 2 cols
+  // 5-6 -> 3 cols
+  // 7-9 -> 3 cols
+  // 10-12 -> 4 cols
+  const cols = useMemo(() => {
+    if (count <= 1) return 1
+    if (count === 2) return 2
+    if (count <= 4) return 2
+    if (count <= 6) return 3
+    if (count <= 9) return 3
+    return 4
+  }, [count])
 
-    const addLocalTrack = async () => {
-      const localTrack = client.localTracks?.find(t => t.trackMediaType === "video") as ILocalVideoTrack | undefined;
-      if (localTrack) {
-        setTracks(prev => [...prev.filter(t => t.type !== "local"), { type: "local", track: localTrack, userId: "local" }]);
-      }
-    };
+  // Adjust tile height to keep the grid pleasant as it fills
+  const heightClass = useMemo(() => {
+    if (count <= 1) return 'h-[56vh]'
+    if (count === 2) return 'h-[48vh]'
+    if (count <= 4) return 'h-[40vh]'
+    if (count <= 6) return 'h-[32vh]'
+    if (count <= 9) return 'h-[26vh]'
+    return 'h-[22vh]'
+  }, [count])
 
-    const handleUserPublished = async (user: IAgoraRTCRemoteUser, mediaType: "video" | "audio") => {
-      await client.subscribe(user, mediaType);
-      if (mediaType === "video" && user.videoTrack) {
-        setTracks(prev => [...prev, { type: "remote", track: user.videoTrack, userId: user.uid.toString() }]);
-      }
-    };
-
-    const handleUserUnpublished = (user: IAgoraRTCRemoteUser) => {
-      setTracks(prev => prev.filter(t => t.userId !== user.uid.toString()));
-    };
-
-    client.on("user-published", handleUserPublished);
-    client.on("user-unpublished", handleUserUnpublished);
-
-    void addLocalTrack();
-
-    return () => {
-      client.off("user-published", handleUserPublished);
-      client.off("user-unpublished", handleUserUnpublished);
-    };
-  }, [client]);
-
-  // Play video tracks
-  useEffect(() => {
-    tracks.forEach(({ track, userId }) => {
-      const videoElement = videoRefs.current.get(userId);
-      if (videoElement && track) {
-        track.play(videoElement);
-      }
-    });
-  }, [tracks]);
-
-  // Dynamic grid columns
-  const gridCols = tracks.length === 1 ? "grid-cols-1" : tracks.length === 2 ? "grid-cols-2" : "grid-cols-3";
+  // Tailwind grid-cols utilities for 1..4
+  const gridColsClass =
+    cols === 1 ? 'grid-cols-1' :
+    cols === 2 ? 'grid-cols-1 sm:grid-cols-2' :
+    cols === 3 ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' :
+                 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
 
   return (
-    <div className={`flex flex-col gap-3 ${className}`}>
-      <div className={`grid gap-3 ${gridCols}`}>
-        {tracks.map(t => (
-          <div
-            key={t.userId}
-            ref={el => {
-              if (el) videoRefs.current.set(t.userId, el);
-              else videoRefs.current.delete(t.userId);
-            }}
-            className="relative aspect-video bg-black rounded-lg overflow-hidden"
-          >
-            {t.type === "local" ? (
-              <span className="absolute bottom-2 left-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
-                You (Local)
-              </span>
-            ) : (
-              <span className="absolute bottom-2 left-2 text-white text-sm bg-black/50 px-2 py-1 rounded">
-                {t.userId}
-              </span>
-            )}
-          </div>
-        ))}
-      </div>
+    <div
+      className={`
+        grid ${gridColsClass}
+        gap-4 md:gap-6 place-items-center w-full
+        ${className || ''}
+      `}
+    >
+      {tiles.map(t => (
+        <VideoTile
+          key={t.id}
+          id={t.id}
+          username={t.username}
+          stream={t.stream}
+          isLocal={t.isLocal}
+          heightClass={heightClass}
+        />
+      ))}
     </div>
-  );
+  )
 }

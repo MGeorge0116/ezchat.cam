@@ -1,99 +1,74 @@
-// components/ChatPanel.tsx
-"use client";
+// File: components/ChatPanel.tsx
 
-import { useEffect, useRef, useState, FormEvent, KeyboardEvent } from "react";
+'use client'
 
-type ChatMessage = {
-  id: string;
-  author: string;   // already ALL CAPS in your UI
-  text: string;
-  ts?: number;
-};
+import React, { useMemo, useRef, useState } from 'react'
 
-export default function ChatPanel(props: {
-  messages: ChatMessage[];
-  onSend: (text: string) => void;
-  className?: string; // optional extra classes from parent
+type Msg = { id: string; user: string; text: string; ts: number }
+
+export default function ChatPanel({
+  me,
+  className,
+}: {
+  me: string
+  className?: string
 }) {
-  const { messages, onSend, className } = props;
-  const [text, setText] = useState("");
-  const endRef = useRef<HTMLDivElement | null>(null);
-  const inputRef = useRef<HTMLInputElement | null>(null);
+  const [msgs, setMsgs] = useState<Msg[]>([])
+  const [text, setText] = useState('')
+  const listRef = useRef<HTMLDivElement | null>(null)
 
-  // Auto-scroll to newest message
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages.length]);
-
-  function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    const val = text.trim();
-    if (!val) return;
-    onSend(val);
-    setText("");
-    inputRef.current?.focus();
+  const send = () => {
+    const t = text.trim()
+    if (!t) return
+    setMsgs(m => [...m, { id: crypto.randomUUID(), user: me, text: t, ts: Date.now() }])
+    setText('')
+    setTimeout(() => listRef.current?.scrollTo({ top: 1e9, behavior: 'smooth' }), 0)
   }
 
-  function onKeyDown(e: KeyboardEvent<HTMLInputElement>) {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      (e.currentTarget.form as HTMLFormElement | null)?.requestSubmit();
-    }
-  }
+  const header = useMemo(
+    () => (
+      <div className="px-3 py-2 border-b border-white/10">
+        <h3 className="text-white/80 font-bold tracking-wide">CHAT</h3>
+      </div>
+    ),
+    []
+  )
 
   return (
-    <section
-      id="chatPanel"
-      className={`flex h-full min-h-0 flex-col ${className ?? ""}`}
-      aria-label="Chat panel"
+    <aside
+      className={`
+        rounded-2xl bg-black/25 ring-1 ring-white/10 flex flex-col
+        w-full h-full ${className || ''}
+      `}
     >
-      {/* Scrollable messages area */}
-      <div
-        id="chatList"
-        role="log"
-        aria-live="polite"
-        className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-2"
-      >
-        {messages.map(m => (
-          <article
-            key={m.id}
-            className="rounded-xl bg-white/5 px-3 py-2"
-            aria-label={`Message from ${m.author}`}
-          >
-            <div className="text-[11px] tracking-wide opacity-70">{m.author}</div>
-            <div className="text-sm leading-relaxed">{m.text}</div>
-          </article>
-        ))}
-        <div ref={endRef} />
+      {header}
+      <div ref={listRef} className="flex-1 overflow-auto p-3 space-y-2">
+        {msgs.length === 0 ? (
+          <p className="text-white/40 text-sm">No messages yet. Say hi!</p>
+        ) : (
+          msgs.map(m => (
+            <div key={m.id} className="text-sm">
+              <span className="text-white/60 mr-1">{m.user.toUpperCase()}:</span>
+              <span className="text-white/90 break-words">{m.text}</span>
+            </div>
+          ))
+        )}
       </div>
-
-      {/* Input row pinned to bottom */}
-      <form
-        id="inputRow"
-        onSubmit={handleSubmit}
-        className="sticky bottom-0 border-t border-white/10 bg-[rgb(12,18,27)/0.85] backdrop-blur px-3 py-2"
-        aria-label="Send a message"
-      >
-        <div className="flex gap-2">
-          <input
-            ref={inputRef}
-            value={text}
-            onChange={e => setText(e.target.value)}
-            onKeyDown={onKeyDown}
-            placeholder="Type a message..."
-            autoComplete="off"
-            aria-label="Message input"
-            className="flex-1 rounded-xl border border-white/15 bg-transparent px-3 py-2 outline-none focus:border-white/30"
-          />
-          <button
-            type="submit"
-            className="rounded-xl border border-white/20 px-4 py-2 text-sm font-medium hover:border-white/40 active:translate-y-[0.5px]"
-            aria-label="Send message"
-          >
-            Send
-          </button>
-        </div>
-      </form>
-    </section>
-  );
+      <div className="p-3 border-t border-white/10 flex items-center gap-2">
+        <input
+          value={text}
+          onChange={e => setText(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && send()}
+          placeholder="Type a message…"
+          className="flex-1 rounded-lg bg-black/40 ring-1 ring-white/10 px-3 py-2 text-white placeholder:text-white/40 focus:outline-none focus:ring-white/20"
+        />
+        <button
+          onClick={send}
+          className="px-3 py-2 rounded-lg bg-white text-black font-semibold hover:opacity-90"
+        >
+          Send
+        </button>
+      </div>
+    </aside>
+  )
 }

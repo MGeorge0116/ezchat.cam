@@ -1,31 +1,21 @@
-// app/api/rooms/my/route.ts
-import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+export const runtime = "nodejs";
 
-export async function GET(req: Request) {
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { prisma } from "@/lib/prisma";
+import { authOptions } from "@/lib/auth";
+
+export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) {
-    return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const email = session.user.email.toLowerCase();
-  const user = await prisma.user.findFirst({ where: { email } });
-  if (!user) return NextResponse.redirect(new URL("/", req.url));
+  const rooms = await prisma.room.findMany({
+    where: { owner: { email: session.user.email } },
+    select: { slug: true, name: true, ownerId: true },
+    orderBy: { slug: "asc" },
+  });
 
-  const slug = (user.username || email.split("@")[0]).toLowerCase();
-
-  let room = await prisma.room.findUnique({ where: { name: slug } });
-  if (!room) {
-    room = await prisma.room.create({
-      data: {
-        name: slug,
-        title: `${user.username}'s Room`,
-        ownerId: user.id,
-      },
-    });
-  }
-
-  return NextResponse.redirect(new URL(`/room/${room.name}`, req.url));
+  return NextResponse.json({ rooms });
 }

@@ -1,41 +1,62 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-type Props = { room: string };
-type PresenceUser = { id?: string; username?: string; name?: string; email?: string };
+type RoomUser = { id?: string; username: string };
 
-export default function UsersList({ room }: Props) {
-  const [users, setUsers] = useState<PresenceUser[]>([]);
-  const [loading, setLoading] = useState(true);
+export default function UsersList({ room }: { room: string }) {
+  const [users, setUsers] = useState<RoomUser[]>([]);
+  const timerRef = useRef<number | null>(null);
+
+  async function fetchUsers() {
+    // Primary: members route driven by your heartbeat
+    const url = `/api/rooms/${encodeURIComponent(room)}/members`;
+    try {
+      const res = await fetch(url, { cache: "no-store" });
+      if (res.ok) {
+        const json = await res.json();
+        if (Array.isArray(json?.users)) {
+          setUsers(json.users as RoomUser[]);
+          return;
+        }
+      }
+    } catch {}
+    // Fallback: show empty quietly
+    setUsers([]);
+  }
 
   useEffect(() => {
-    let timer: any;
-
-    const load = async () => {
-      try {
-        const res = await fetch(`/api/presence/list?room=${encodeURIComponent(room)}`, { cache: "no-store" });
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          const list: PresenceUser[] = data?.users ?? data?.presence ?? [];
-          setUsers(Array.isArray(list) ? list : []);
-        }
-      } catch {}
-      setLoading(false);
-      timer = setTimeout(load, 5000);
+    fetchUsers();
+    timerRef.current = window.setInterval(fetchUsers, 5000);
+    return () => {
+      if (timerRef.current) window.clearInterval(timerRef.current);
     };
-
-    load();
-    return () => clearTimeout(timer);
   }, [room]);
 
-  if (loading && users.length === 0) return <div className="opacity-60 text-sm">Loading…</div>;
-  if (users.length === 0) return <div className="opacity-60 text-sm">No one here yet.</div>;
+  if (!users.length) {
+    return (
+      <ul className="space-y-1">
+        <li className="opacity-80 text-[12px]">No one here yet.</li>
+      </ul>
+    );
+  }
 
   return (
-    <ul className="space-y-2 text-sm">
+    <ul className="space-y-1">
       {users.map((u, i) => (
-        <li key={u.id ?? i} className="truncate">• {u.username || u.name || u.email || "User"}</li>
+        <li
+          key={u.id ?? `${u.username}-${i}`}
+          className="flex items-center gap-1.5 text-[12px] leading-tight"
+          title={u.username}
+        >
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.25)]"
+            aria-hidden
+          />
+          <span className="truncate max-w-[calc(var(--user-rail-w,112px)-16px)]">
+            {u.username}
+          </span>
+        </li>
       ))}
     </ul>
   );

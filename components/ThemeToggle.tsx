@@ -1,17 +1,9 @@
-// components/ThemeToggle.tsx
 "use client";
 
 import { useEffect, useState } from "react";
 
 type Props = { className?: string; title?: string };
 
-/**
- * Dependency-free theme toggle:
- * - Persists to localStorage("theme")
- * - Toggles `dark` on <html>
- * - Defaults to dark
- * - Avoids hydration mismatch by initializing on mount
- */
 export default function ThemeToggle({ className, title }: Props) {
   const [mounted, setMounted] = useState(false);
   const [isDark, setIsDark] = useState(true);
@@ -20,7 +12,6 @@ export default function ThemeToggle({ className, title }: Props) {
     const root = document.documentElement;
     const stored = localStorage.getItem("theme");
     let nextDark = true;
-
     if (stored === "light") nextDark = false;
     else if (stored === "dark") nextDark = true;
     else if (root.classList.contains("dark")) nextDark = true;
@@ -54,7 +45,7 @@ export default function ThemeToggle({ className, title }: Props) {
   return (
     <button
       type="button"
-      onClick={() => setIsDark((v) => !v)}
+      onClick={() => setIsDark(v => !v)}
       aria-label="Toggle theme"
       title={title ?? (isDark ? "Switch to light mode" : "Switch to dark mode")}
       className={`rounded-xl border border-white/20 px-2 py-2 hover:border-white/40 active:translate-y-[0.5px] ${className ?? ""}`}

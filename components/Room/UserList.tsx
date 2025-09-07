@@ -1,62 +1,57 @@
-// components/Room/UserList.tsx
-"use client"
+"use client";
 
-import { useEffect, useState } from "react"
+import { useEffect, useState } from "react";
 
-async function fetchPresence(room: string): Promise<string[]> {
-  const res = await fetch(`/api/presence/list?room=${encodeURIComponent(room)}`, { cache: "no-store" })
-  if (!res.ok) return []
-  return res.json()
-}
+type Props = { room: string };
 
-export default function UserList({ room, joined }: { room: string; joined: boolean }) {
-  const [users, setUsers] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+type PresenceUser = {
+  username: string;
+  lastSeen: string;
+};
+
+export default function UsersList({ room }: Props) {
+  const [users, setUsers] = useState<PresenceUser[]>([]);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!joined) {
-      setUsers([])
-      setLoading(false)
-      return
-    }
-    let active = true
-    let interval: ReturnType<typeof setInterval> | null = null
+    let alive = true;
 
-    const load = async () => {
+    async function load() {
       try {
-        const list = await fetchPresence(room)
-        if (!active) return
-        setUsers(list)
-        setError(null)
+        const res = await fetch(`/api/presence/list?room=${encodeURIComponent(room)}`, { cache: "no-store" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        if (alive) setUsers(data.users || []);
       } catch (e: any) {
-        if (!active) return
-        setError(e?.message ?? "Failed to load presence")
-      } finally {
-        if (active) setLoading(false)
+        if (alive) setErr(e?.message || "Failed to load users");
       }
     }
 
-    load()
-    interval = setInterval(load, 5000)
+    load();
+    const id = setInterval(load, 5000);
     return () => {
-      active = false
-      if (interval) clearInterval(interval)
-    }
-  }, [room, joined])
+      alive = false;
+      clearInterval(id);
+    };
+  }, [room]);
 
   return (
-    <div className="p-3 space-y-2">
-      {loading && <div className="text-xs opacity-70">Loading…</div>}
-      {error && <div className="text-xs text-yellow-500">{error}</div>}
-      {!loading && users.map((u) => (
-        <div key={u} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-black/25 border">
-          <div className="w-6 h-6 rounded-full bg-gray-700 flex items-center justify-center text-xs">
-            {u.charAt(0).toUpperCase()}
-          </div>
-          <div className="text-sm">{u}</div>
-        </div>
-      ))}
+    <div className="h-full border border-white/10 rounded-2xl p-3 bg-white/5">
+      <div className="text-center text-sm font-semibold tracking-wider mb-3">USERS</div>
+      {err && (
+        <div className="text-xs text-red-400 mb-2">Couldn&apos;t load users. Showing last known list.</div>
+      )}
+      {users.length === 0 ? (
+        <div className="text-xs text-white/60">No one here yet. Share your link!</div>
+      ) : (
+        <ul className="space-y-2">
+          {users.map((u) => (
+            <li key={u.username} className="truncate text-sm">
+              {u.username.toUpperCase()}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
-  )
+  );
 }

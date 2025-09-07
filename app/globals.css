@@ -1,11 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-/* App-wide navy token used in dark mode */
-:root {
-  --navy-950: #0b1220;
-}
+/* Dark navy token */
+:root { --navy-950: #0b1220; }
 
 html, body { height: 100%; }
 
@@ -13,26 +9,45 @@ html, body { height: 100%; }
 body { @apply min-h-screen bg-white text-slate-900 antialiased; }
 .dark body { background-color: var(--navy-950); @apply text-slate-100; }
 
-/* Links behave consistently */
-a { @apply underline-offset-2; }
-a:hover { @apply underline; }
-
-/* Utility for subtle panels used on the room page */
-.panel {
-  @apply rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur-sm;
-}
-/* Dark navy token */
-:root { --navy-950: #0b1220; }
-
-html, body { height: 100%; }
-
-body { @apply min-h-screen bg-white text-slate-900 antialiased; }
-.dark body { background-color: var(--navy-950); @apply text-slate-100; }
-
+/* Links */
 a { @apply underline-offset-2; }
 a:hover { @apply underline; }
 
 /* Reusable panel used in room columns */
-.panel {
-  @apply rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur-sm;
+.panel { @apply rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur-sm; }
+
+/* Make a child span the full viewport width inside a centered container */
+.full-bleed {
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  width: 100vw;
+}
+/* Span full viewport width inside a centered container (so side panels hit page edges) */
+.full-bleed-x {
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  width: 100vw;
+}
+
+/* Cancel <main class="py-6"> vertical padding so panels can stretch to the footer */
+.full-bleed-y {
+  margin-top: -1.5rem;   /* = py-6 top */
+  margin-bottom: -1.5rem;/* = py-6 bottom */
+}
+
+/* Height for left/right rails on the room page */
+:root {
+  /* header is h-14 (56px); footer area + breathing room ≈ 96px */
+  --room-rail-h: calc(100vh - 56px - 96px);
+}
+/* File: app/globals.css */
+/* If any page accidentally renders more than one <footer>,
+   hide all but the last one so only the real bottom footer shows. */
+footer:not(:last-of-type) {
+  display: none !important;
+}
+
+/* Optional smoothing for the dark UI */
+:root {
+  color-scheme: dark;
 }

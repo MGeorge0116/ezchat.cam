@@ -7,54 +7,31 @@ import bcrypt from "bcryptjs";
 
 export async function POST(req: Request) {
   try {
-    // Accept JSON or form POSTs
-    const ct = req.headers.get("content-type") || "";
-    let payload: Record<string, any> = {};
-    if (ct.includes("application/json")) {
-      payload = await req.json();
-    } else {
-      const fd = await req.formData();
-      payload = Object.fromEntries(fd as any);
+    const { email, username, password } = await req.json();
+
+    if (!email || !username || !password) {
+      return NextResponse.json({ ok: false, error: "email, username, password required" }, { status: 400 });
     }
 
-    const email = String(payload.email || "").trim().toLowerCase();
-    const password = String(payload.password || payload.pass || "");
-    const usernameInput = String(payload.username || payload.name || "").trim();
-
-    if (!email || !password) {
-      return NextResponse.json(
-        { error: "Email and password are required." },
-        { status: 400 }
-      );
-    }
-
-    const username =
-      usernameInput || (email.includes("@") ? email.split("@")[0] : "user");
-
-    // Ensure email not already taken
-    const exists = await prisma.user.findUnique({ where: { email } });
-    if (exists) {
-      return NextResponse.json(
-        { error: "Email is already registered." },
-        { status: 409 }
-      );
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }] },
+      select: { id: true },
+    });
+    if (existing) {
+      return NextResponse.json({ ok: false, error: "Email or username already in use" }, { status: 409 });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-
-    // ✅ Use passwordHash (not password); include username
-    const user = await prisma.user.create({
+    await prisma.user.create({
       data: {
-        email,
-        username,
-        passwordHash,
+        email: email.toLowerCase(),
+        username: username.toLowerCase(),
+        passwordHash, // IMPORTANT: store hash, never the password
       },
-      select: { id: true, email: true, username: true },
     });
 
-    return NextResponse.json({ user }, { status: 201 });
-  } catch (err) {
-    console.error("Register error:", err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ ok: false, error: e?.message || "Registration error" }, { status: 500 });
   }
 }

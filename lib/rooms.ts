@@ -1,51 +1,51 @@
-// lib/rooms.ts
-// Simple in-memory room directory with TTL + counts. Resets on server restart.
+// File: lib/rooms.ts
 
-export type RoomInfo = {
-  room: string;
-  title: string;
-  lastSeen: number;      // epoch ms
-  usersCount?: number;   // total connected users
-  camsCount?: number;    // users that currently have video
-};
+import { Room } from '../types/room'
 
-const rooms = new Map<string, RoomInfo>();
-const TTL_MS = 1000 * 60 * 5; // Remove rooms idle > 5 minutes
+// ---------- Demo data so the page renders immediately ----------
+const PROMOTED_IDS = ['room-1', 'room-2', 'room-3', 'room-4', 'room-5']
+const TOTAL_ROOMS = 53 // to demonstrate multiple pages
 
-function purge() {
-  const now = Date.now();
-  for (const [key, val] of rooms) {
-    if (now - val.lastSeen > TTL_MS) rooms.delete(key);
-  }
+const makeRoom = (i: number): Room => ({
+  id: `room-${i}`,
+  name: `Room ${i}`,
+  owner: `owner${i}`,
+  viewers: Math.floor(10 + (i * 37) % 500),
+  isLive: true,
+  isPromoted: PROMOTED_IDS.includes(`room-${i}`),
+  thumbnailUrl: undefined, // drop in your image URL if you have one
+})
+
+const ALL_ROOMS: Room[] = Array.from({ length: TOTAL_ROOMS }, (_, i) => makeRoom(i + 1))
+// ---------------------------------------------------------------
+
+export type ListRoomsResult = {
+  promoted: Room[]   // up to 5
+  activePage: Room[] // 20 (or fewer on last page)
+  totalActive: number
+  totalPages: number
+  page: number       // 1-indexed
+  pageSize: number
 }
 
-export function upsertRoom(
-  room: string,
-  title?: string,
-  usersCount?: number,
-  camsCount?: number
-) {
-  const r = room.trim();
-  if (!r) return;
-  purge();
-  const existing = rooms.get(r);
-  rooms.set(r, {
-    room: r,
-    title: (title ?? existing?.title ?? r).trim(),
-    lastSeen: Date.now(),
-    usersCount: typeof usersCount === "number" ? usersCount : existing?.usersCount,
-    camsCount: typeof camsCount === "number" ? camsCount : existing?.camsCount,
-  });
-}
+/**
+ * Returns the 5 promoted rooms (or reserved placeholders) and
+ * a 20-per-page slice of active rooms (excluding promoted ones).
+ */
+export function listRooms({
+  page = 1,
+  pageSize = 20,
+}: { page?: number; pageSize?: number }): ListRoomsResult {
+  const promoted = ALL_ROOMS.filter(r => r.isPromoted).slice(0, 5)
+  const activePool = ALL_ROOMS.filter(r => !r.isPromoted)
 
-export function listRooms(): RoomInfo[] {
-  purge();
-  // Return shuffled copy (random order for display)
-  const arr = Array.from(rooms.values());
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  // Sort tie-breaker by lastSeen descending so newest still tends to surface
-  return arr.sort((a, b) => b.lastSeen - a.lastSeen);
+  const totalActive = activePool.length
+  const safePageSize = Math.max(1, Math.floor(pageSize))
+  const totalPages = Math.max(1, Math.ceil(totalActive / safePageSize))
+
+  const safePage = Math.min(Math.max(1, Math.floor(page)), totalPages)
+  const start = (safePage - 1) * safePageSize
+  const activePage = activePool.slice(start, start + safePageSize)
+
+  return { promoted, activePage, totalActive, totalPages, page: safePage, pageSize: safePageSize }
 }

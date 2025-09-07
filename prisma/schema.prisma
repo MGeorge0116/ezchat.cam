@@ -1,14 +1,29 @@
-// prisma/schema.prisma
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
-
 model User {
-  id    Int     @id @default(autoincrement())
-  uid   String  @unique
+  id        Int      @id @default(autoincrement())
+  uid       String   @unique // Should already exist per db pull
+  email     String?  @unique
+  password  String?  // For credentials-based auth
+  name      String?
+  age       Int?     // For age verification
+  messages  Message[]
+}
+
+model Message {
+  id        Int      @id @default(autoincrement())
+  content   String
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  model Presence {
+  id        String   @id @default(cuid())
+  room      String
+  userId    String
+  username  String
+  lastSeen  DateTime @updatedAt
+
+  @@index([room, lastSeen])
+  @@unique([room, userId]) // one active row per user per room
+}
+
 }
