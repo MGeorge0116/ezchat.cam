@@ -1,5 +1,5 @@
 import React from "react";
-import RoomShell from "@/components/room/RoomShell"; // ← alias import (works on Vercel)
+import RoomShell from "@/components/room/RoomShell";
 
 type Params = { username: string };
 
