@@ -2,100 +2,12 @@
 @tailwind components;
 @tailwind utilities;
 
-/* (your existing styles can stay here) */
-
-
-@import "tailwindcss";
-
-
-/* Dark navy token */
-:root { --navy-950: #0b1220; }
-
-html, body { height: 100%; }
-
-/* Base colors; dark mode flips to navy background */
-body { @apply min-h-screen bg-white text-slate-900 antialiased; }
-.dark body { background-color: var(--navy-950); @apply text-slate-100; }
-
-/* Links */
-a { @apply underline-offset-2; }
-a:hover { @apply underline; }
-
-/* Reusable panel used in room columns */
-.panel { @apply rounded-2xl bg-white/5 ring-1 ring-white/10 backdrop-blur-sm; }
-
-/* Make a child span the full viewport width inside a centered container */
-.full-bleed {
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  width: 100vw;
-}
-/* Span full viewport width inside a centered container (so side panels hit page edges) */
-.full-bleed-x {
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  width: 100vw;
-}
-
-/* Cancel <main class="py-6"> vertical padding so panels can stretch to the footer */
-.full-bleed-y {
-  margin-top: -1.5rem;   /* = py-6 top */
-  margin-bottom: -1.5rem;/* = py-6 bottom */
-}
-
-/* Height for left/right rails on the room page */
-:root {
-  /* header is h-14 (56px); footer area + breathing room ≈ 96px */
-  --room-rail-h: calc(100vh - 56px - 96px);
-}
-/* File: app/globals.css */
-/* If any page accidentally renders more than one <footer>,
-   hide all but the last one so only the real bottom footer shows. */
-footer:not(:last-of-type) {
-  display: none !important;
-}
-
-/* Optional smoothing for the dark UI */
-:root {
-  color-scheme: dark;
-}
-
-/* App scaffolding */
-html, body {
-  height: 100%;
-}
-body {
-  @apply bg-[#0e1621] text-white;
-}
-.light body, :root:not(.dark) body {
-  @apply bg-white text-black;
-}
-
-/* basic scrollbar */
-*::-webkit-scrollbar { width: 10px; height: 10px; }
-*::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 10px; }
-*::-webkit-scrollbar-track { background: transparent; }
-
-/* footer spacing */
-.main-wrap {
-  min-height: 100dvh;
-  display: flex;
-  flex-direction: column;
-}
-.main-content {
-  flex: 1 1 auto;
-}
-
-/* page frame */
 html, body { height: 100%; }
 body { @apply bg-[#0e1621] text-white; }
-.light body, :root:not(.dark) body { @apply bg-white text-black; }
 
-/* sticky footer layout */
 .main-wrap { min-height: 100dvh; display: flex; flex-direction: column; }
 .main-content { flex: 1 1 auto; }
 
-/* subtle scrollbar */
 *::-webkit-scrollbar { width: 10px; height: 10px; }
 *::-webkit-scrollbar-thumb { background: rgba(255,255,255,.12); border-radius: 10px; }
 *::-webkit-scrollbar-track { background: transparent; }

@@ -37,11 +37,9 @@ function prune(room: string) {
 
 export async function touch(room: string, username: string, isLive?: boolean) {
   await storePresenceTouch(room, username, isLive);
-
   const m = roomMap(room);
   const u = username.toLowerCase();
   m.set(u, { username: u, lastSeen: Date.now(), isLive: !!isLive });
-
   notify(room);
 }
 

@@ -1,27 +1,18 @@
-// app/api/rtm/route.ts
-import { RtmTokenBuilder, RtmRole } from 'agora-token';
-import { NextResponse } from 'next/server';
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-const APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID!;
-const APP_CERT = process.env.AGORA_APP_CERT!;
-const EXPIRE_SECS = 60 * 60; // 1 hour
+import { RtmTokenBuilder, RtmRole } from "agora-token";
 
-export async function POST(req: Request) {
-  try {
-    const { uid } = await req.json();
-    if (!uid) return new NextResponse('uid required', { status: 400 });
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const uid = String(url.searchParams.get("uid") || "guest");
+  const exp = Number(url.searchParams.get("exp") || 3600);
 
-    const expireTs = Math.floor(Date.now() / 1000) + EXPIRE_SECS;
-    const token = RtmTokenBuilder.buildToken(
-      APP_ID,
-      APP_CERT,
-      String(uid),
-      RtmRole.Rtm_User,
-      expireTs
-    );
+  const appId = process.env.AGORA_APP_ID || "";
+  const appCert = process.env.AGORA_APP_CERT || "";
+  if (!appId || !appCert) return new Response("Missing Agora env", { status: 400 });
 
-    return NextResponse.json({ token });
-  } catch {
-    return new NextResponse('Bad request', { status: 400 });
-  }
+  const now = Math.floor(Date.now() / 1000);
+  const token = RtmTokenBuilder.buildToken(appId, appCert, uid, RtmRole.Rtm_User, now + exp);
+  return new Response(JSON.stringify({ token }), { headers: { "content-type": "application/json" } });
 }

@@ -1,8 +1,5 @@
 "use client";
-
 import { useEffect, useState } from "react";
-
-/* ========= Broadcast State ========= */
 
 type BroadcastState = {
   isLive: boolean;
@@ -88,8 +85,6 @@ export function useBroadcastActions(room: string) {
   return { start, stop, toggleMic, toggleDeafen, setMicDevice, setCamDevice };
 }
 
-/* ========= Directory & Presence heartbeat ========= */
-
 export function useRoomHeartbeat(room: string) {
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +96,6 @@ export function useRoomHeartbeat(room: string) {
         localStorage.getItem("ui:username") ||
         room;
 
-      // read presence list to compute counts
       let watching = 0;
       let broadcasters = 0;
       try {
@@ -129,9 +123,7 @@ export function useRoomHeartbeat(room: string) {
       }
     }
 
-    // initial write
     writeMeta(false);
-
     const id = setInterval(() => {
       writeMeta(ensureRoomState(room).isLive);
       presenceHeartbeat(room, ensureRoomState(room).isLive);

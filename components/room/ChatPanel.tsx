@@ -1,10 +1,7 @@
 "use client";
-
 import { useEffect, useMemo, useRef, useState } from "react";
 
-type Props = { room: string };
 type ChatMessage = { id: string; room: string; username: string; text: string; ts: number };
-
 const ACTIVE_KEY = "chat:active";
 const ACTIVE_TTL_MS = 15000;
 
@@ -25,7 +22,7 @@ function myTabId(): string {
   return id;
 }
 
-export default function ChatPanel({ room }: Props) {
+export default function ChatPanel({ room }: { room: string }) {
   const me = useMemo(currentUsername, []);
   const tabId = useMemo(myTabId, []);
   const [blockedBy, setBlockedBy] = useState<string | null>(null);
@@ -37,20 +34,17 @@ export default function ChatPanel({ room }: Props) {
   const ownsLockRef = useRef(false);
   const heartbeatIdRef = useRef<any>(null);
 
-  // single-room lock
   useEffect(() => {
     function readLock() {
       try { const raw = localStorage.getItem(ACTIVE_KEY); return raw ? JSON.parse(raw) : null; }
       catch { return null; }
     }
     function writeLock(v: any) { try { localStorage.setItem(ACTIVE_KEY, JSON.stringify(v)); } catch {} }
-
     function tryAcquire() {
       const cur = readLock();
       const now = Date.now();
       if (!cur || now - cur.ts > ACTIVE_TTL_MS) {
-        ownsLockRef.current = true;
-        setBlockedBy(null);
+        ownsLockRef.current = true; setBlockedBy(null);
         writeLock({ room: room.toLowerCase(), tabId, ts: now });
         heartbeatIdRef.current = setInterval(() => {
           const c2 = readLock();
@@ -59,27 +53,22 @@ export default function ChatPanel({ room }: Props) {
         return;
       }
       if (cur.room !== room.toLowerCase() || cur.tabId !== tabId) {
-        ownsLockRef.current = false;
-        setBlockedBy(cur.room);
-        return;
+        ownsLockRef.current = false; setBlockedBy(cur.room); return;
       }
-      ownsLockRef.current = true;
-      setBlockedBy(null);
+      ownsLockRef.current = true; setBlockedBy(null);
       writeLock({ ...cur, ts: now, room: room.toLowerCase(), tabId });
       heartbeatIdRef.current = setInterval(() => {
         const c2 = readLock();
         if (c2 && c2.tabId === tabId) writeLock({ ...c2, ts: Date.now(), room: room.toLowerCase() });
       }, 4000);
     }
-
     tryAcquire();
     function onStorage(e: StorageEvent) {
       if (e.key !== ACTIVE_KEY) return;
       const cur = (() => { try { return e.newValue ? JSON.parse(e.newValue) : null; } catch { return null; }})();
       const now = Date.now();
       if (!cur || now - cur.ts > ACTIVE_TTL_MS) {
-        if (!ownsLockRef.current) tryAcquire();
-        return;
+        if (!ownsLockRef.current) tryAcquire(); return;
       }
       if (cur.tabId !== tabId || cur.room !== room.toLowerCase()) {
         ownsLockRef.current = false; setBlockedBy(cur.room);
@@ -99,12 +88,10 @@ export default function ChatPanel({ room }: Props) {
     };
   }, [room, tabId]);
 
-  // chat history polling (portable baseline)
   useEffect(() => {
     if (blockedBy) return;
     joinTsRef.current = Date.now();
     setMessages([]);
-
     let closed = false;
     let pollId: any = null;
 
@@ -116,12 +103,9 @@ export default function ChatPanel({ room }: Props) {
         const arr = (data?.messages || []).filter((m: ChatMessage) => (m?.ts || 0) > since);
         if (!closed && arr.length) append(arr);
       } catch {}
-      finally {
-        if (!closed) pollId = setTimeout(tick, document.hidden ? 8000 : 3000);
-      }
+      finally { if (!closed) pollId = setTimeout(tick, document.hidden ? 8000 : 3000); }
     }
     tick();
-
     return () => { closed = true; if (pollId) clearTimeout(pollId); };
   }, [room, blockedBy]);
 
@@ -157,9 +141,7 @@ export default function ChatPanel({ room }: Props) {
         body: JSON.stringify({ room, username: me, text, clientId }),
       });
     } catch {}
-    finally {
-      inputRef.current?.focus();
-    }
+    finally { inputRef.current?.focus(); }
   }
 
   return (

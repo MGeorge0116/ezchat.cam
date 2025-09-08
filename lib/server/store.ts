@@ -1,4 +1,3 @@
-// Unified storage adapter: Redis (via REDIS_URL) or in-memory fallback.
 import Redis from "ioredis";
 
 let redis: Redis | null = null;

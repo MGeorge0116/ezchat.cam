@@ -1,5 +1,4 @@
 "use client";
-
 import { useMemo } from "react";
 import { usePathname } from "next/navigation";
 import UsersList from "./UsersList";
@@ -9,9 +8,7 @@ import BroadcastControls from "./BroadcastControls";
 import DeviceSelectors from "./DeviceSelectors";
 import { useRoomHeartbeat } from "./hooks";
 
-type Props = { roomName?: string };
-
-export default function RoomShell({ roomName }: Props) {
+export default function RoomShell({ roomName }: { roomName?: string }) {
   const pathname = usePathname();
 
   const resolvedRoomName = useMemo(() => {
@@ -45,15 +42,12 @@ export default function RoomShell({ roomName }: Props) {
           <h1 className="text-2xl font-semibold tracking-wide">{TITLE}</h1>
         </div>
 
-        {/* Device dropdowns (visible while live) */}
         <DeviceSelectors room={resolvedRoomName} />
 
-        {/* Video area */}
         <div className="flex-1 min-h-0">
           <VideoGrid room={resolvedRoomName} />
         </div>
 
-        {/* Controls BELOW the video section */}
         <div className="pt-2">
           <BroadcastControls room={resolvedRoomName} />
         </div>

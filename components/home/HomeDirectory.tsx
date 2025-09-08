@@ -1,5 +1,4 @@
 "use client";
-
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { listActiveRooms, type DirectoryRoom } from "@/lib/reportDirectory";
@@ -59,7 +58,6 @@ function DirectoryCard({ room }: { room: DirectoryRoom }) {
       href={uname ? `/room/${uname}` : "#"}
       className="rounded-2xl border border-white/10 bg-white/5 block overflow-hidden hover:border-white/20"
     >
-      {/* Thumbnail = avatar */}
       <div className="w-full aspect-video bg-black/40 relative">
         {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -69,7 +67,6 @@ function DirectoryCard({ room }: { room: DirectoryRoom }) {
         )}
       </div>
 
-      {/* Meta */}
       <div className="p-3 space-y-1.5">
         <div className="flex items-center gap-2">
           <div className="font-semibold">{unameDisplay}</div>

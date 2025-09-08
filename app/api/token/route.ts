@@ -1,43 +1,19 @@
-import { NextRequest, NextResponse } from "next/server"
-import { RtcRole, RtcTokenBuilder } from "agora-access-token"
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-// Utility to enforce required environment variables
-function requiredEnv(name: string): string {
-  const v = process.env[name]
-  if (!v) throw new Error(`Missing environment variable: ${name}`)
-  return v
-}
+import { RtcRole, RtcTokenBuilder } from "agora-access-token";
 
-export async function GET(req: NextRequest) {
-  try {
-    const url = new URL(req.url)
-    const channelName = url.searchParams.get("channelName")
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const channel = String(url.searchParams.get("channel") || "test");
+  const uid = Number(url.searchParams.get("uid") || 0);
+  const exp = Number(url.searchParams.get("exp") || 3600);
 
-    if (!channelName) {
-      return NextResponse.json({ error: "Missing channelName" }, { status: 400 })
-    }
+  const appId = process.env.AGORA_APP_ID || "";
+  const appCert = process.env.AGORA_APP_CERT || "";
+  if (!appId || !appCert) return new Response("Missing Agora env", { status: 400 });
 
-    const appId = requiredEnv("NEXT_PUBLIC_AGORA_APP_ID")
-    const appCertificate = requiredEnv("AGORA_APP_CERTIFICATE")
-    const expiration = parseInt(process.env.AGORA_TOKEN_EXPIRES || "3600", 10)
-
-    const uid = 0 // Let Agora assign UID automatically
-    const current = Math.floor(Date.now() / 1000)
-    const privilegeExpire = current + expiration
-
-    // Build RTC token with Agora SDK
-    const token = RtcTokenBuilder.buildTokenWithUid(
-      appId,
-      appCertificate,
-      channelName,
-      uid,
-      RtcRole.PUBLISHER,
-      privilegeExpire
-    )
-
-    return NextResponse.json({ token, appId })
-  } catch (err: any) {
-    console.error("Token route error:", err)
-    return NextResponse.json({ error: err.message || "Internal Server Error" }, { status: 500 })
-  }
+  const now = Math.floor(Date.now() / 1000);
+  const token = RtcTokenBuilder.buildTokenWithUid(appId, appCert, channel, uid, RtcRole.PUBLISHER, now + exp);
+  return new Response(JSON.stringify({ token }), { headers: { "content-type": "application/json" } });
 }
