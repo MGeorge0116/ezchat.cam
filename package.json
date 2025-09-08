@@ -9,6 +9,7 @@
     "vercel-build": "next build"
   },
   "dependencies": {
+    "@prisma/client": "^6.15.0",
     "agora-access-token": "^2.0.4",
     "agora-token": "^2.0.1",
     "bcryptjs": "^2.4.3",
