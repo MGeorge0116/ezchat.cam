@@ -1,5 +1,5 @@
 import { use } from "react";
-import RoomShell from "../../../components/room/RoomShell";
+import RoomShell from "@/components/room/RoomShell";
 
 export default function RoomPage({
   params,
