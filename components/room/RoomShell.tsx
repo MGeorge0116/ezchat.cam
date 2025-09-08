@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo } from "react";
-import UsersList from "./UsersList";
-import VideoGrid from "./VideoGrid";
-import ChatPanel from "./ChatPanel";
-import BroadcastControls from "./BroadcastControls";
-import DeviceSelectors from "./DeviceSelectors";
+import UsersList from "@/components/room/UsersList";
+import VideoGrid from "@/components/room/VideoGrid";
+import ChatPanel from "@/components/room/ChatPanel";
+import BroadcastControls from "@/components/room/BroadcastControls";
+import DeviceSelectors from "@/components/room/DeviceSelectors";
 
 type Props = { roomName: string };
 
