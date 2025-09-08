@@ -1,4 +1,3 @@
-// app/api/presence/list/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -10,7 +9,7 @@ export async function GET(req: Request) {
   const room = String(url.searchParams.get("room") || "").toLowerCase();
   if (!room) return NextResponse.json({ users: [] });
 
-  const users = list(room).map((u) => ({
+  const users = (await list(room)).map((u) => ({
     username: u.username,
     lastSeen: new Date(u.lastSeen).toISOString(),
     isLive: !!u.isLive,

@@ -1,4 +1,3 @@
-// components/home/HomeDirectory.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -7,6 +6,7 @@ import { listActiveRooms, type DirectoryRoom } from "@/lib/reportDirectory";
 
 export default function HomeDirectory() {
   const [rooms, setRooms] = useState<DirectoryRoom[]>([]);
+
   useEffect(() => {
     const read = () => setRooms(listActiveRooms());
     read();
@@ -18,7 +18,7 @@ export default function HomeDirectory() {
   const active   = useMemo(() => rooms.slice(0, 24), [rooms]);
 
   return (
-    <div className="w-full px-4 pb-8">
+    <div className="w-full">
       <h2 className="text-center text-xl font-semibold mb-3">Promoted Rooms</h2>
       {promoted.length === 0 ? (
         <div className="text-center text-sm opacity-70 mb-6">No promoted rooms right now.</div>
@@ -59,7 +59,7 @@ function DirectoryCard({ room }: { room: DirectoryRoom }) {
       href={uname ? `/room/${uname}` : "#"}
       className="rounded-2xl border border-white/10 bg-white/5 block overflow-hidden hover:border-white/20"
     >
-      {/* Thumbnail */}
+      {/* Thumbnail = avatar */}
       <div className="w-full aspect-video bg-black/40 relative">
         {avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -71,18 +71,15 @@ function DirectoryCard({ room }: { room: DirectoryRoom }) {
 
       {/* Meta */}
       <div className="p-3 space-y-1.5">
-        {/* Title row */}
         <div className="flex items-center gap-2">
           <div className="font-semibold">{unameDisplay}</div>
           {isLive && <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-600 text-white">● LIVE</span>}
         </div>
 
-        {/* Description */}
         <div className="text-xs opacity-80 line-clamp-2 min-h-[1.25rem]">
           {desc || "—"}
         </div>
 
-        {/* Counts + handle */}
         <div className="flex items-center text-xs opacity-70 gap-3">
           <span>Broadcasters: {broadcasters}/12</span>
           <span className="ml-2">Users: {usersInRoom}</span>

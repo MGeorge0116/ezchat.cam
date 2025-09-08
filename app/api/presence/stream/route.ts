@@ -1,4 +1,3 @@
-// app/api/presence/stream/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -12,8 +11,8 @@ export async function GET(req: Request) {
   const enc = new TextEncoder();
   const stream = new ReadableStream({
     start(controller) {
-      const send = () => {
-        const payload = { users: list(room).map((u) => ({
+      const send = async () => {
+        const payload = { users: (await list(room)).map((u) => ({
           username: u.username,
           lastSeen: new Date(u.lastSeen).toISOString(),
           isLive: !!u.isLive,
@@ -21,8 +20,8 @@ export async function GET(req: Request) {
         controller.enqueue(enc.encode(`event: update\ndata: ${JSON.stringify(payload)}\n\n`));
       };
       send();
-      const unsub = subscribe(room, send);
-      const ping = setInterval(() => controller.enqueue(enc.encode(`: ping\n\n`)), 15_000);
+      const unsub = subscribe(room, () => { send().catch(() => {}); });
+      const ping = setInterval(() => controller.enqueue(enc.encode(`: ping\n\n`)), 15000);
       const abort = () => { clearInterval(ping); unsub(); try { controller.close(); } catch {} };
       (req as any).signal?.addEventListener?.("abort", abort);
     },

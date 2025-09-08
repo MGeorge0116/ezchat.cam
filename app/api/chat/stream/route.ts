@@ -1,4 +1,3 @@
-// app/api/chat/stream/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -17,20 +16,11 @@ export async function GET(req: Request) {
         controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
       };
 
-      // initial history
-      push("history", getHistory(room, 100));
-
-      // live messages
+      getHistory(room, 100).then((h) => push("history", h)).catch(() => {});
       const unsub = subscribeChat(room, (msg) => push("message", msg));
-
-      // keepalive
       const ping = setInterval(() => controller.enqueue(enc.encode(`: ping\n\n`)), 15000);
 
-      const abort = () => {
-        clearInterval(ping);
-        unsub();
-        try { controller.close(); } catch {}
-      };
+      const abort = () => { clearInterval(ping); unsub(); try { controller.close(); } catch {} };
       (req as any).signal?.addEventListener?.("abort", abort);
     },
   });

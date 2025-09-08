@@ -1,6 +1,3 @@
-// lib/server/chat.ts
-// Chat with optional Redis backing + in-memory subscribers for SSE.
-
 import {
   storeChatAdd,
   storeChatHistory,
@@ -10,21 +7,16 @@ import {
 export type ChatMessage = StoredChatMessage;
 
 type ChatState = {
-  rooms: Map<string, ChatMessage[]>; // used only when Redis is not configured
+  rooms: Map<string, ChatMessage[]>;
   subs: Map<string, Set<(msg: ChatMessage) => void>>;
   maxPerRoom: number;
 };
 
-const g = globalThis as any;
+const g = (globalThis as any);
 if (!g.__chatState) {
-  g.__chatState = {
-    rooms: new Map(),
-    subs: new Map(),
-    maxPerRoom: 200,
-  } as ChatState;
+  g.__chatState = { rooms: new Map(), subs: new Map(), maxPerRoom: 200 } as ChatState;
 }
 const state: ChatState = g.__chatState;
-
 const keyRoom = (r: string) => r.toLowerCase();
 
 export async function addMessage(
@@ -37,16 +29,13 @@ export async function addMessage(
   const id = clientId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const msg: ChatMessage = { id, room: rkey, username: username.toLowerCase(), text, ts: Date.now() };
 
-  // Persist in Redis if available
   await storeChatAdd(rkey, msg);
 
-  // Also keep a tiny in-memory buffer (for non-Redis setups / local dev)
   if (!state.rooms.has(rkey)) state.rooms.set(rkey, []);
   const list = state.rooms.get(rkey)!;
   list.push(msg);
   if (list.length > state.maxPerRoom) list.splice(0, list.length - state.maxPerRoom);
 
-  // Notify SSE subscribers (works on a single long-running process, e.g., VPS)
   const subs = state.subs.get(rkey);
   if (subs) for (const cb of subs) { try { cb(msg); } catch {} }
 

@@ -1,4 +1,3 @@
-// app/api/rooms/heartbeat/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -11,7 +10,7 @@ export async function POST(req: Request) {
     if (!room || !username) {
       return NextResponse.json({ ok: false, error: "room and username required" }, { status: 400 });
     }
-    touch(String(room), String(username), Boolean(isLive));
+    await touch(String(room), String(username), Boolean(isLive));
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     return NextResponse.json({ ok: false, error: e?.message || "heartbeat failed" }, { status: 500 });

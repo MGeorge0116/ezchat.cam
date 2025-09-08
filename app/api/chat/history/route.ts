@@ -1,4 +1,3 @@
-// app/api/chat/history/route.ts
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -10,6 +9,6 @@ export async function GET(req: Request) {
   const room = String(url.searchParams.get("room") || "").toLowerCase();
   const limit = Number(url.searchParams.get("limit") || 100);
   if (!room) return NextResponse.json({ messages: [] });
-  const messages = getHistory(room, Math.max(1, Math.min(limit, 200)));
+  const messages = await getHistory(room, Math.max(1, Math.min(limit, 200)));
   return NextResponse.json({ messages });
 }

@@ -4,9 +4,9 @@
     "lib": [
       "dom",
       "dom.iterable",
-      "ES2021"
+      "es2022"
     ],
-    "allowJs": true,
+    "allowJs": false,
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
@@ -16,13 +16,13 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "preserve",
-    "incremental": true,
     "baseUrl": ".",
     "paths": {
       "@/*": [
-        "./*"
+        "*"
       ]
     },
+    "incremental": true,
     "plugins": [
       {
         "name": "next"
@@ -30,9 +30,9 @@
     ]
   },
   "include": [
-    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
+    "next-env.d.ts",
     ".next/types/**/*.ts"
   ],
   "exclude": [

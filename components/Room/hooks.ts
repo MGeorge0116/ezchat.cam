@@ -1,4 +1,3 @@
-// components/room/hooks.ts
 "use client";
 
 import { useEffect, useState } from "react";
@@ -102,7 +101,7 @@ export function useRoomHeartbeat(room: string) {
         localStorage.getItem("ui:username") ||
         room;
 
-      // pull presence (users + broadcaster flags)
+      // read presence list to compute counts
       let watching = 0;
       let broadcasters = 0;
       try {
@@ -120,7 +119,7 @@ export function useRoomHeartbeat(room: string) {
         isLive,
         promoted: localStorage.getItem(`room:meta:${username}:promoted`) === "1",
         watching,
-        broadcasters, // NEW
+        broadcasters,
         avatarDataUrl: localStorage.getItem(`profile:avatar:${username}`) || "",
         description: localStorage.getItem(`profile:desc:${username}`) || "",
         lastSeen: Date.now(),
@@ -130,13 +129,11 @@ export function useRoomHeartbeat(room: string) {
       }
     }
 
-    // initial write (offline snapshot)
+    // initial write
     writeMeta(false);
 
     const id = setInterval(() => {
-      const s = ensureRoomState(room);
-      writeMeta(!!s.isLive);
-      // send presence ping including live state
+      writeMeta(ensureRoomState(room).isLive);
       presenceHeartbeat(room, ensureRoomState(room).isLive);
     }, 5000);
 

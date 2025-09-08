@@ -1,24 +1,27 @@
-// app/layout.tsx
 import "./globals.css";
-import type { Metadata } from "next";
-import Providers from "@/app/providers";
 import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
 
-export const metadata: Metadata = {
+export const metadata = {
   title: "EZChat.Cam",
-  description: "Webcam chat rooms",
+  description: "Lightweight live video rooms with chat"
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
-      <body className="min-h-screen h-full flex flex-col">
-        <Providers>
+    <html lang="en" className="dark">
+      <body>
+        <div className="main-wrap">
           <Header />
-          <main className="flex-1 min-h-0">{children}</main>
-          <Footer />
-        </Providers>
+          <main className="main-content">{children}</main>
+          <footer className="px-4 py-6 text-center text-xs opacity-70 border-t border-white/10">
+            <div className="max-w-5xl mx-auto flex items-center justify-center gap-6">
+              <a href="#" className="hover:underline">Donate</a>
+              <a href="#" className="hover:underline">Privacy Policy</a>
+              <a href="#" className="hover:underline">Terms of Service</a>
+            </div>
+            <div className="mt-2 opacity-60">© 2025 EZChat.Cam. All Rights Reserved.</div>
+          </footer>
+        </div>
       </body>
     </html>
   );

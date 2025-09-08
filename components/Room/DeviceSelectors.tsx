@@ -1,4 +1,3 @@
-// components/room/DeviceSelectors.tsx
 "use client";
 
 import { useEffect, useState } from "react";
@@ -14,31 +13,19 @@ export default function DeviceSelectors({ room }: Props) {
   const [mics, setMics] = useState<Dev[]>([]);
   const [cams, setCams] = useState<Dev[]>([]);
 
-  // enumerate devices (labels appear after permission; when live -> OK)
   async function refresh() {
     try {
       const list = await navigator.mediaDevices.enumerateDevices();
-      setMics(
-        list
-          .filter((d) => d.kind === "audioinput")
-          .map((d) => ({ deviceId: d.deviceId, label: d.label || "Microphone" }))
-      );
-      setCams(
-        list
-          .filter((d) => d.kind === "videoinput")
-          .map((d) => ({ deviceId: d.deviceId, label: d.label || "Camera" }))
-      );
-    } catch {
-      /* ignore */
-    }
+      setMics(list.filter(d => d.kind === "audioinput").map(d => ({ deviceId: d.deviceId, label: d.label || "Microphone" })));
+      setCams(list.filter(d => d.kind === "videoinput").map(d => ({ deviceId: d.deviceId, label: d.label || "Camera" })));
+    } catch {}
   }
 
-  // Only refresh when live (keeps hook order stable; effect no-ops when not live)
   useEffect(() => {
     if (!isLive) return;
     refresh();
     const onChange = () => refresh();
-    // @ts-ignore - older TS lib types
+    // @ts-ignore
     navigator.mediaDevices?.addEventListener?.("devicechange", onChange);
     return () => {
       // @ts-ignore
@@ -46,11 +33,9 @@ export default function DeviceSelectors({ room }: Props) {
     };
   }, [isLive]);
 
-  // NOTE: no conditional hooks. These are plain values (no useMemo).
   const micValue = selectedMicId ?? "";
   const camValue = selectedCamId ?? "";
 
-  // Render nothing when not live
   if (!isLive) return null;
 
   return (
@@ -63,11 +48,7 @@ export default function DeviceSelectors({ room }: Props) {
           className="bg-white/10 hover:bg-white/20 rounded-lg px-2 py-1 text-sm"
         >
           {cams.length === 0 && <option value="">No cameras</option>}
-          {cams.map((c) => (
-            <option key={c.deviceId} value={c.deviceId}>
-              {c.label}
-            </option>
-          ))}
+          {cams.map((c) => <option key={c.deviceId} value={c.deviceId}>{c.label}</option>)}
         </select>
       </label>
 
@@ -79,11 +60,7 @@ export default function DeviceSelectors({ room }: Props) {
           className="bg-white/10 hover:bg-white/20 rounded-lg px-2 py-1 text-sm"
         >
           {mics.length === 0 && <option value="">No microphones</option>}
-          {mics.map((m) => (
-            <option key={m.deviceId} value={m.deviceId}>
-              {m.label}
-            </option>
-          ))}
+          {mics.map((m) => <option key={m.deviceId} value={m.deviceId}>{m.label}</option>)}
         </select>
       </label>
     </div>

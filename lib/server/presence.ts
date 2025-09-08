@@ -1,70 +1,66 @@
-// lib/server/chat.ts
-// Chat with optional Redis backing + in-memory subscribers for SSE.
-
 import {
-  storeChatAdd,
-  storeChatHistory,
-  type StoredChatMessage,
+  storePresenceTouch,
+  storePresenceList,
+  type StoredPresence,
 } from "@/lib/server/store";
 
-export type ChatMessage = StoredChatMessage;
+export type PresenceUser = StoredPresence;
 
-type ChatState = {
-  rooms: Map<string, ChatMessage[]>; // used only when Redis is not configured
-  subs: Map<string, Set<(msg: ChatMessage) => void>>;
-  maxPerRoom: number;
-};
+type RoomMap = Map<string, PresenceUser>;
+type Sub = (users: PresenceUser[]) => void;
 
-const g = globalThis as any;
-if (!g.__chatState) {
-  g.__chatState = {
-    rooms: new Map(),
-    subs: new Map(),
-    maxPerRoom: 200,
-  } as ChatState;
+type PresenceState = { rooms: Map<string, RoomMap>; subs: Map<string, Set<Sub>> };
+
+const g = (globalThis as any);
+if (!g.__presenceState) {
+  g.__presenceState = { rooms: new Map(), subs: new Map() } as PresenceState;
 }
-const state: ChatState = g.__chatState;
+const state: PresenceState = g.__presenceState;
 
 const keyRoom = (r: string) => r.toLowerCase();
 
-export async function addMessage(
-  room: string,
-  username: string,
-  text: string,
-  clientId?: string
-): Promise<ChatMessage> {
-  const rkey = keyRoom(room);
-  const id = clientId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const msg: ChatMessage = { id, room: rkey, username: username.toLowerCase(), text, ts: Date.now() };
-
-  // Persist in Redis if available
-  await storeChatAdd(rkey, msg);
-
-  // Also keep a tiny in-memory buffer (for non-Redis setups / local dev)
-  if (!state.rooms.has(rkey)) state.rooms.set(rkey, []);
-  const list = state.rooms.get(rkey)!;
-  list.push(msg);
-  if (list.length > state.maxPerRoom) list.splice(0, list.length - state.maxPerRoom);
-
-  // Notify SSE subscribers (works on a single long-running process, e.g., VPS)
-  const subs = state.subs.get(rkey);
-  if (subs) for (const cb of subs) { try { cb(msg); } catch {} }
-
-  return msg;
+function roomMap(room: string): RoomMap {
+  const k = keyRoom(room);
+  if (!state.rooms.has(k)) state.rooms.set(k, new Map());
+  return state.rooms.get(k)!;
+}
+function roomSubs(room: string): Set<Sub> {
+  const k = keyRoom(room);
+  if (!state.subs.has(k)) state.subs.set(k, new Set());
+  return state.subs.get(k)!;
+}
+function prune(room: string) {
+  const m = roomMap(room);
+  const cutoff = Date.now() - 30_000;
+  for (const [u, e] of m) if ((e.lastSeen || 0) < cutoff) m.delete(u);
 }
 
-export async function getHistory(room: string, limit = 100): Promise<ChatMessage[]> {
-  const rkey = keyRoom(room);
-  const fromRedis = await storeChatHistory(rkey, limit);
+export async function touch(room: string, username: string, isLive?: boolean) {
+  await storePresenceTouch(room, username, isLive);
+
+  const m = roomMap(room);
+  const u = username.toLowerCase();
+  m.set(u, { username: u, lastSeen: Date.now(), isLive: !!isLive });
+
+  notify(room);
+}
+
+export async function list(room: string): Promise<PresenceUser[]> {
+  const fromRedis = await storePresenceList(room);
   if (fromRedis.length > 0) return fromRedis;
-  const list = state.rooms.get(rkey) || [];
-  return list.slice(Math.max(0, list.length - Math.max(1, Math.min(limit, 1000))));
+  prune(room);
+  const m = roomMap(room);
+  return Array.from(m.values()).sort((a, b) => (b.lastSeen || 0) - (a.lastSeen || 0));
 }
 
-export function subscribeChat(room: string, cb: (msg: ChatMessage) => void): () => void {
-  const rkey = keyRoom(room);
-  if (!state.subs.has(rkey)) state.subs.set(rkey, new Set());
-  const set = state.subs.get(rkey)!;
+export function subscribe(room: string, cb: Sub): () => void {
+  const set = roomSubs(room);
   set.add(cb);
+  list(room).then((users) => { try { cb(users); } catch {} });
   return () => set.delete(cb);
+}
+
+export async function notify(room: string) {
+  const users = await list(room);
+  for (const cb of roomSubs(room)) { try { cb(users); } catch {} }
 }
