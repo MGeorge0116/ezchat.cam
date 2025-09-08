@@ -3,11 +3,11 @@
 import { useMemo } from "react";
 
 // point imports to the folder that actually exists on your repo (capital R)
-import UsersList from "@/components/Room/UsersList";
-import VideoGrid from "@/components/Room/VideoGrid";
-import ChatPanel from "@/components/Room/ChatPanel";
-import BroadcastControls from "@/components/Room/BroadcastControls";
-import DeviceSelectors from "@/components/Room/DeviceSelectors";
+import UsersList from "@/components/room/UsersList";
+import VideoGrid from "@/components/room/VideoGrid";
+import ChatPanel from "@/components/room/ChatPanel";
+import BroadcastControls from "@/components/room/BroadcastControls";
+import DeviceSelectors from "@/components/room/DeviceSelectors";
 
 type Props = { roomName: string };
 
