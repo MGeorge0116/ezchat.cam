@@ -1,19 +1,15 @@
-import React from "react";
-import RoomShell from "@/components/room/RoomShell";
+import * as React from "react";
+import RoomShell from "@/app/room/RoomShell";
 
-type Params = { username: string };
+type PageProps = {
+  params: { username: string };
+};
 
-export default function RoomPage({
-  params,
-}: {
-  params: Promise<Params> | Params; // supports Next 15 params-as-Promise
-}) {
-  // unwrap either a plain object or a Promise (for forward-compat)
-  // @ts-ignore
-  const { username } = typeof (params as any).then === "function"
-    ? // @ts-ignore
-      React.use(params as Promise<Params>)
-    : (params as Params);
+export const dynamic = "force-dynamic";
 
-  return <RoomShell roomName={username} />;
+export default function RoomPage({ params }: PageProps) {
+  const { username } = params;
+  // The RoomShell is assumed to be a Client Component handling the 3-column layout,
+  // video grid, chat pane, and controls. We pass only the typed username.
+  return <RoomShell username={username} />;
 }

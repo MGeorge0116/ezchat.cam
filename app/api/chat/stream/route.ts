@@ -1,27 +1,37 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { NextRequest } from "next/server";
+import { subscribeChat } from "@/lib/server/chat";
+import { pickString } from "@/lib/guards";
 
-import { getHistory, subscribeChat } from "@/lib/server/chat";
+export const runtime = "edge"; // good for SSE
 
-export async function GET(req: Request) {
-  const url = new URL(req.url);
-  const room = String(url.searchParams.get("room") || "").toLowerCase();
-  if (!room) return new Response("room required", { status: 400 });
-
-  const enc = new TextEncoder();
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const room = searchParams.get("room");
+  if (!room) {
+    return new Response("Missing room", { status: 400 });
+  }
 
   const stream = new ReadableStream({
     start(controller) {
-      const push = (event: string, payload: unknown) => {
-        controller.enqueue(enc.encode(`event: ${event}\ndata: ${JSON.stringify(payload)}\n\n`));
+      const encoder = new TextEncoder();
+      const send = (data: unknown) => {
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
+      const unsub = subscribeChat(room, send);
 
-      getHistory(room, 100).then((h) => push("history", h)).catch(() => {});
-      const unsub = subscribeChat(room, (msg) => push("message", msg));
-      const ping = setInterval(() => controller.enqueue(enc.encode(`: ping\n\n`)), 15000);
+      // Optional: greet with username if passed
+      const username = pickString(Object.fromEntries(searchParams), "username");
+      if (username) send({ type: "hello", username });
 
-      const abort = () => { clearInterval(ping); unsub(); try { controller.close(); } catch {} };
-      (req as any).signal?.addEventListener?.("abort", abort);
+      controller.enqueue(encoder.encode(`event: ready\ndata: {}\n\n`));
+
+      const close = () => {
+        unsub();
+        controller.close();
+      };
+      // disconnect handling
+      // @ts-expect-error: web runtime close reason
+      req.signal?.addEventListener("abort", close);
     },
   });
 
@@ -30,7 +40,6 @@ export async function GET(req: Request) {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
       Connection: "keep-alive",
-      "X-Accel-Buffering": "no",
     },
   });
 }

@@ -1,48 +1,64 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import * as React from "react";
 
-type Props = { room: string };
-type Msg = { id?: string | number; text?: string; message?: string; username?: string; user?: string; createdAt?: string };
+export type ChatItem = {
+  id: string;
+  username: string;
+  text: string;
+  createdAt?: number; // epoch ms optional
+};
 
-export default function ChatMessages({ room }: Props) {
-  const [items, setItems] = useState<Msg[]>([]);
-  const endRef = useRef<HTMLDivElement | null>(null);
+export interface ChatMessagesProps {
+  messages: ChatItem[];
+  className?: string;
+  /** Auto-scroll to bottom when new messages arrive (default true) */
+  autoScroll?: boolean;
+}
 
-  useEffect(() => {
-    let timer: any;
+export default function ChatMessages({
+  messages,
+  className,
+  autoScroll = true,
+}: ChatMessagesProps) {
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const lastCountRef = React.useRef<number>(messages.length);
 
-    const tick = async () => {
-      try {
-        const res = await fetch(`/api/chat/list?room=${encodeURIComponent(room)}`, { cache: "no-store" });
-        if (res.ok) {
-          const data = await res.json().catch(() => ({}));
-          const list: Msg[] = data?.messages ?? data ?? [];
-          setItems(Array.isArray(list) ? list : []);
-        }
-      } catch {}
-      timer = setTimeout(tick, 3000);
-    };
-
-    tick();
-    return () => clearTimeout(timer);
-  }, [room]);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [items.length]);
-
-  if (!items.length) return <div className="opacity-60 text-sm">No messages yet.</div>;
+  React.useEffect(() => {
+    if (!autoScroll) return;
+    if (messages.length > lastCountRef.current) {
+      // New message(s) arrived
+      const el = containerRef.current;
+      if (el) el.scrollTop = el.scrollHeight;
+    }
+    lastCountRef.current = messages.length;
+  }, [messages, autoScroll]);
 
   return (
-    <div className="space-y-2 text-sm">
-      {items.map((m, i) => (
-        <div key={m.id ?? i} className="break-words">
-          <span className="opacity-60 mr-2">{m.username || m.user || "User"}:</span>
-          <span>{m.text ?? m.message ?? ""}</span>
-        </div>
-      ))}
-      <div ref={endRef} />
+    <div
+      ref={containerRef}
+      className={`h-full overflow-y-auto rounded-xl border border-neutral-800 p-2 ${className ?? ""}`}
+      aria-label="Chat messages"
+    >
+      {messages.length === 0 ? (
+        <p className="py-6 text-center text-sm opacity-70">No messages yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {messages.map((m) => (
+            <li key={m.id} className="rounded-lg bg-neutral-900/70 p-2">
+              <div className="mb-1 text-xs font-semibold tracking-wide opacity-80">
+                {m.username.toUpperCase()}
+                {typeof m.createdAt === "number" && (
+                  <span className="ml-2 font-normal opacity-60">
+                    {new Date(m.createdAt).toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+              <div className="whitespace-pre-wrap text-sm">{m.text}</div>
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

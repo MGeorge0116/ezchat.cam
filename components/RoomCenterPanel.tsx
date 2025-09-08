@@ -1,198 +1,113 @@
-// File: components/RoomCenterPanel.tsx
+"use client";
 
-'use client'
+import * as React from "react";
+import MediaDeviceBar from "@/components/MediaDeviceBar";
+import BroadcastControls from "@/components/room/BroadcastControls";
 
-import React, { useCallback, useEffect, useRef, useState } from 'react'
-import VideoGrid from './VideoGrid'
+export interface RoomCenterPanelProps {
+  room: string;
+  className?: string;
+}
 
-export default function RoomCenterPanel({ username }: { username: string }) {
-  const [stream, setStream] = useState<MediaStream | null>(null)
-  const [isBroadcasting, setIsBroadcasting] = useState(false)
-  const [cameraOn, setCameraOn] = useState(true)
-  const [micOn, setMicOn] = useState(true)
-  const [deafened, setDeafened] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+export default function RoomCenterPanel({ room, className }: RoomCenterPanelProps) {
+  const videoRef = React.useRef<HTMLVideoElement | null>(null);
+  const [isBroadcasting, setIsBroadcasting] = React.useState(false);
+  const [micMuted, setMicMuted] = React.useState(false);
+  const [deafened, setDeafened] = React.useState(false);
+  const [cameraId, setCameraId] = React.useState<string | null>(null);
+  const [micId, setMicId] = React.useState<string | null>(null);
+  const mediaStreamRef = React.useRef<MediaStream | null>(null);
 
-  const deafenObserverRef = useRef<MutationObserver | null>(null)
-
-  const btnBase =
-    'px-4 py-2 rounded-2xl text-sm font-semibold shadow-sm transition-transform active:scale-[0.98] focus:outline-none focus:ring'
-  const btnGreen = 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-300'
-  const btnRed   = 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-300'
-  const btnSlate = 'bg-slate-700 hover:bg-slate-800 text-white focus:ring-slate-400'
-
-  // Start: request camera+mic, flip UI ONLY after success
-  const startBroadcast = useCallback(async () => {
-    setError(null)
-    try {
-      const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-      s.getVideoTracks().forEach(t => (t.enabled = true))
-      s.getAudioTracks().forEach(t => (t.enabled = true))
-      setStream(s)
-      setCameraOn(true)
-      setMicOn(true)
-      setIsBroadcasting(true)
-    } catch (e: any) {
-      setError(e?.message || 'Failed to access camera/microphone.')
-      setStream(null)
-      setIsBroadcasting(false)
+  const start = React.useCallback(async () => {
+    // Acquire tracks using chosen devices if provided
+    const constraints: MediaStreamConstraints = {
+      video: cameraId ? { deviceId: { exact: cameraId } } : true,
+      audio: micId ? { deviceId: { exact: micId } } : true,
+    };
+    const stream = await navigator.mediaDevices.getUserMedia(constraints);
+    mediaStreamRef.current = stream;
+    const videoEl = videoRef.current;
+    if (videoEl) {
+      videoEl.srcObject = stream;
+      await videoEl.play();
     }
-  }, [])
+    setIsBroadcasting(true);
+  }, [cameraId, micId]);
 
-  // STOP: halt camera & mic tracks and remove the tile immediately
-  const stopBroadcast = useCallback(() => {
-    // 1) Remove the tile right away by clearing the stream
-    setStream(prev => {
-      if (prev) {
-        // Stop ALL tracks (video + audio)
-        prev.getTracks().forEach(tr => { try { tr.stop() } catch {} })
-      }
-      return null
-    })
-    // 2) Reset UI flags
-    setIsBroadcasting(false)
-    setCameraOn(true)
-    setMicOn(true)
-  }, [])
-
-  // Toggles (enable/disable tracks without removing the tile)
-  const toggleCamera = useCallback(() => {
-    setCameraOn(prev => {
-      const next = !prev
-      stream?.getVideoTracks().forEach(t => (t.enabled = next))
-      return next
-    })
-  }, [stream])
-
-  const toggleMic = useCallback(() => {
-    setMicOn(prev => {
-      const next = !prev
-      stream?.getAudioTracks().forEach(t => (t.enabled = next))
-      return next
-    })
-  }, [stream])
-
-  // Deafen (mute all page media outputs)
-  const applyDeafen = useCallback((on: boolean) => {
-    const els = Array.from(document.querySelectorAll<HTMLMediaElement>('audio, video'))
-    if (on) {
-      els.forEach(el => {
-        if (!el.muted) (el as any).dataset.mutedByDeafen = '1'
-        el.muted = true
-      })
-    } else {
-      els.forEach(el => {
-        if ((el as any).dataset.mutedByDeafen === '1') {
-          el.muted = false
-          delete (el as any).dataset.mutedByDeafen
-        }
-      })
+  const stop = React.useCallback(() => {
+    const stream = mediaStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
     }
-  }, [])
-
-  // Keep new media muted while deafened
-  useEffect(() => {
-    if (!deafened) {
-      deafenObserverRef.current?.disconnect()
-      deafenObserverRef.current = null
-      return
+    const videoEl = videoRef.current;
+    if (videoEl) {
+      videoEl.srcObject = null;
     }
-    applyDeafen(true)
-    const obs = new MutationObserver(muts => {
-      for (const m of muts) {
-        m.addedNodes.forEach(node => {
-          if (node instanceof HTMLElement) {
-            node.querySelectorAll('audio, video').forEach(el => {
-              const media = el as HTMLMediaElement
-              if (!media.muted) (media as any).dataset.mutedByDeafen = '1'
-              media.muted = true
-            })
-          }
-        })
-      }
-    })
-    obs.observe(document.body, { childList: true, subtree: true })
-    deafenObserverRef.current = obs
-    return () => { obs.disconnect(); deafenObserverRef.current = null }
-  }, [deafened, applyDeafen])
+    setIsBroadcasting(false);
+  }, []);
 
-  // Cleanup on unmount
-  useEffect(() => {
+  const toggleMic = React.useCallback(() => {
+    const stream = mediaStreamRef.current;
+    if (!stream) return;
+    stream.getAudioTracks().forEach((t) => {
+      t.enabled = !t.enabled;
+    });
+    setMicMuted((v) => !v);
+  }, []);
+
+  const toggleDeafen = React.useCallback(() => {
+    // Deafen = mute *page* media (local + remote). Here we only mute the local preview element.
+    const videoEl = videoRef.current;
+    if (videoEl) {
+      videoEl.muted = !videoEl.muted;
+    }
+    setDeafened((v) => !v);
+  }, []);
+
+  React.useEffect(() => {
     return () => {
-      setStream(prev => {
-        if (prev) prev.getTracks().forEach(tr => { try { tr.stop() } catch {} })
-        return null
-      })
-    }
-  }, [])
+      // cleanup on unmount
+      const stream = mediaStreamRef.current;
+      if (stream) {
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
 
   return (
-    <div className="flex flex-col items-center gap-4 w-full">
-      {/* Center video section */}
-      <VideoGrid
-        username={username}
-        stream={stream}
-        cameraOn={cameraOn}
-        micOn={micOn}
-        className="w-full"
-        showPlaceholder
+    <div className={`flex h-full flex-col ${className ?? ""}`}>
+      {/* Device selectors belong ABOVE the broadcast panel */}
+      <MediaDeviceBar
+        selectedCameraId={cameraId}
+        selectedMicrophoneId={micId}
+        onSelectCamera={setCameraId}
+        onSelectMicrophone={setMicId}
+        className="border-b border-neutral-800"
       />
 
-      {/* Buttons BELOW the grid */}
-      <div className="w-full flex flex-wrap items-center gap-3">
-        {!isBroadcasting ? (
-          <button
-            className={`${btnBase} ${btnGreen}`}
-            onClick={startBroadcast}
-            aria-label="Start Broadcasting"
-          >
-            Start Broadcasting
-          </button>
-        ) : (
-          <>
-            <button
-              className={`${btnBase} ${btnRed}`}
-              onClick={stopBroadcast}
-              aria-label="Stop Broadcasting"
-            >
-              Stop Broadcasting
-            </button>
-            <button
-              className={`${btnBase} ${cameraOn ? btnRed : btnGreen}`}
-              onClick={toggleCamera}
-              aria-pressed={!cameraOn}
-              aria-label={cameraOn ? 'Camera Hide' : 'Camera Unhide'}
-            >
-              {cameraOn ? 'Camera Hide' : 'Camera Unhide'}
-            </button>
-            <button
-              className={`${btnBase} ${micOn ? btnRed : btnGreen}`}
-              onClick={toggleMic}
-              aria-pressed={!micOn}
-              aria-label={micOn ? 'Microphone Mute' : 'Microphone Unmute'}
-            >
-              {micOn ? 'Microphone Mute' : 'Microphone Unmute'}
-            </button>
-          </>
-        )}
-
-        <button
-          className={`${btnBase} ${btnSlate}`}
-          onClick={() => {
-            setDeafened(d => {
-              const next = !d
-              applyDeafen(next)
-              return next
-            })
-          }}
-          aria-pressed={deafened}
-          aria-label={deafened ? 'Undeafen' : 'Deafen'}
-        >
-          {deafened ? 'Undeafen' : 'Deafen'}
-        </button>
+      {/* Video stage */}
+      <div className="flex flex-1 items-center justify-center">
+        <video
+          ref={videoRef}
+          className="max-h-[62vh] max-w-[92%] rounded-xl border border-neutral-700 object-contain"
+          muted // local preview muted to avoid echo
+          playsInline
+          autoPlay
+        />
       </div>
 
-      {error && <p className="text-red-400 text-sm">{error}</p>}
+      {/* Controls belong BELOW the video */}
+      <BroadcastControls
+        isBroadcasting={isBroadcasting}
+        onStart={start}
+        onStop={stop}
+        micMuted={micMuted}
+        onToggleMic={toggleMic}
+        deafened={deafened}
+        onToggleDeafen={toggleDeafen}
+        className="mt-2"
+      />
     </div>
-  )
+  );
 }

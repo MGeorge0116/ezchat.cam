@@ -1,168 +1,127 @@
-// app/ui/AuthBox.tsx
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { signIn } from "next-auth/react";
+import * as React from "react";
+
+type Mode = "login" | "register";
 
 export default function AuthBox() {
-  const router = useRouter();
-  const [tab, setTab] = useState<"login" | "register">("register");
-  const [form, setForm] = useState({
-    username: "",
-    email: "",
-    password: "",
-    ageVerified: false,
-  });
-  const [error, setError] = useState("");
+  const [mode, setMode] = React.useState<Mode>("login");
+  const [email, setEmail] = React.useState("");
+  const [username, setUsername] = React.useState("");
+  const [password, setPassword] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [msg, setMsg] = React.useState<string | null>(null);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) =>
-    setForm({ ...form, [e.target.name]: e.target.value });
+  const switchMode = React.useCallback((m: Mode) => {
+    setMode(m);
+    setMsg(null);
+  }, []);
 
-  async function handleRegister(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    try {
-      const res = await fetch("/api/auth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || "Failed to register");
-
-      const loginRes = await signIn("credentials", {
-        redirect: false,
-        email: form.email,
-        password: form.password,
-      });
-      if (loginRes?.ok) router.refresh();
-      else setError("Registration succeeded but login failed.");
-    } catch (err: any) {
-      setError(err?.message || "Internal Server Error");
-    }
-  }
-
-  async function handleLogin(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    try {
-      const res = await signIn("credentials", {
-        redirect: false,
-        email: form.email,
-        password: form.password,
-      });
-      if (res?.ok) router.refresh();
-      else setError("Invalid credentials.");
-    } catch (err: any) {
-      setError(err?.message || "Internal Server Error");
-    }
-  }
+  const onSubmit = React.useCallback(
+    async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      setBusy(true);
+      setMsg(null);
+      try {
+        if (mode === "register") {
+          const res = await fetch("/api/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, username, password }),
+          });
+          if (!res.ok) throw new Error("Registration failed");
+          setMsg("Registered! You can sign in now.");
+          setMode("login");
+        } else {
+          // Stub login; integrate NextAuth or your API when ready.
+          if (!username || !password) throw new Error("Missing credentials");
+          setMsg("Signed in (stub). Wire to NextAuth to complete.");
+        }
+      } catch (err) {
+        setMsg(err instanceof Error ? err.message : "Something went wrong");
+      } finally {
+        setBusy(false);
+      }
+    },
+    [mode, email, username, password]
+  );
 
   return (
-    <div className="flex justify-center mt-8">
-      <section className="w-[320px] p-4 border bg-[color:rgb(var(--card))] text-[color:rgb(var(--foreground))]">
-        {/* Toggle buttons */}
-        <div className="flex justify-center mb-4 gap-2">
-          <button
-            type="button"
-            className={`px-3 py-1 text-sm ${
-              tab === "login"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-200"
-            }`}
-            onClick={() => setTab("login")}
-          >
-            Login
-          </button>
-          <button
-            type="button"
-            className={`px-3 py-1 text-sm ${
-              tab === "register"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-200 text-gray-900 dark:bg-gray-700 dark:text-gray-200"
-            }`}
-            onClick={() => setTab("register")}
-          >
-            Register
-          </button>
+    <div className="mx-auto w-full max-w-md rounded-2xl border border-neutral-700/50 p-4 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
+        <div className="text-lg font-semibold">
+          {mode === "login" ? "Sign in" : "Create account"}
         </div>
-
-        {error && <p className="text-red-500 text-sm mb-3">{error}</p>}
-
-        {tab === "login" ? (
-          <form onSubmit={handleLogin} className="space-y-2">
-            <input
-              type="email"
-              name="email"
-              placeholder="Email"
-              value={form.email}
-              onChange={handleChange}
-              className="w-full border px-2 py-1 text-sm bg-[color:rgb(var(--background))] text-[color:rgb(var(--foreground))]"
-            />
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={form.password}
-              onChange={handleChange}
-              className="w-full border px-2 py-1 text-sm bg-[color:rgb(var(--background))] text-[color:rgb(var(--foreground))]"
-            />
+        <div className="text-sm">
+          {mode === "login" ? (
             <button
-              type="submit"
-              className="w-full bg-blue-600 text-white px-2 py-1 text-sm"
-            >
-              Login
-            </button>
-          </form>
-        ) : (
-          <form onSubmit={handleRegister} className="space-y-2">
-            <input
-              type="text"
-              name="username"
-              placeholder="Username"
-              value={form.username}
-              onChange={handleChange}
-              className="w-full border px-2 py-1 text-sm bg-[color:rgb(var(--background))] text-[color:rgb(var(--foreground))]"
-            />
-            <input
-              type="email"
-              name="email"
-              placeholder="Email"
-              value={form.email}
-              onChange={handleChange}
-              className="w-full border px-2 py-1 text-sm bg-[color:rgb(var(--background))] text-[color:rgb(var(--foreground))]"
-            />
-            <input
-              type="password"
-              name="password"
-              placeholder="Password"
-              value={form.password}
-              onChange={handleChange}
-              className="w-full border px-2 py-1 text-sm bg-[color:rgb(var(--background))] text-[color:rgb(var(--foreground))]"
-            />
-            <label className="flex items-center gap-2 text-xs">
-              <input
-                type="checkbox"
-                name="ageVerified"
-                checked={form.ageVerified}
-                onChange={(e) =>
-                  setForm({ ...form, ageVerified: e.target.checked })
-                }
-                className="w-3 h-3"
-              />
-              I confirm that I am at least 18 years old.
-            </label>
-            <button
-              type="submit"
-              className="w-full bg-blue-600 text-white px-2 py-1 text-sm"
-              disabled={!form.ageVerified}
+              type="button"
+              onClick={() => switchMode("register")}
+              className="underline hover:no-underline"
             >
               Register
             </button>
-          </form>
+          ) : (
+            <button
+              type="button"
+              onClick={() => switchMode("login")}
+              className="underline hover:no-underline"
+            >
+              Sign in
+            </button>
+          )}
+        </div>
+      </div>
+
+      <form onSubmit={onSubmit} className="space-y-3">
+        {mode === "register" && (
+          <label className="block">
+            <span className="mb-1 block text-sm opacity-80">Email</span>
+            <input
+              type="email"
+              value={email}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setEmail(e.currentTarget.value)}
+              className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2"
+              required
+            />
+          </label>
         )}
-      </section>
+
+        <label className="block">
+          <span className="mb-1 block text-sm opacity-80">Username</span>
+          <input
+            value={username}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setUsername(e.currentTarget.value)
+            }
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2"
+            required
+          />
+        </label>
+
+        <label className="block">
+          <span className="mb-1 block text-sm opacity-80">Password</span>
+          <input
+            type="password"
+            value={password}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              setPassword(e.currentTarget.value)
+            }
+            className="w-full rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-2"
+            required
+          />
+        </label>
+
+        <button
+          type="submit"
+          disabled={busy}
+          className="w-full rounded-xl bg-blue-600 px-4 py-2 font-semibold text-white transition hover:bg-blue-700 disabled:opacity-60"
+        >
+          {busy ? "Working…" : mode === "login" ? "Sign in" : "Register"}
+        </button>
+
+        {msg && <p className="text-center text-sm opacity-80">{msg}</p>}
+      </form>
     </div>
   );
 }

@@ -1,18 +1,15 @@
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import { NextRequest, NextResponse } from "next/server";
+import { requireStrings } from "@/lib/guards";
+import type { HeartbeatBody } from "@/lib/types";
+import { heartbeat } from "@/lib/server/presence";
 
-import { NextResponse } from "next/server";
-import { touch } from "@/lib/server/presence";
-
-export async function POST(req: Request) {
-  try {
-    const { room, username, isLive } = await req.json();
-    if (!room || !username) {
-      return NextResponse.json({ ok: false, error: "room and username required" }, { status: 400 });
-    }
-    await touch(String(room), String(username), Boolean(isLive));
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "heartbeat failed" }, { status: 500 });
+export async function POST(req: NextRequest) {
+  const bodyUnknown: unknown = await req.json();
+  if (!requireStrings(bodyUnknown, ["room", "username"])) {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
+  const body = bodyUnknown as HeartbeatBody;
+
+  const res = await heartbeat(body.room, body.username);
+  return NextResponse.json(res ?? { ok: true });
 }

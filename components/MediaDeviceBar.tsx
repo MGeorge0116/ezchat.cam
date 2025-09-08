@@ -1,193 +1,113 @@
-// components/MediaDeviceBar.tsx
 "use client";
 
-import React from "react";
-import { getRtcClient } from "../lib/agora";
+import * as React from "react";
 
-type MediaDeviceInfoLite = Pick<MediaDeviceInfo, "deviceId" | "kind" | "label">;
-
-function isVideoInput(d: MediaDeviceInfo) {
-  return d.kind === "videoinput";
-}
-function isAudioInput(d: MediaDeviceInfo) {
-  return d.kind === "audioinput";
+export interface MediaDeviceBarProps {
+  selectedCameraId?: string | null;
+  selectedMicrophoneId?: string | null;
+  onSelectCamera?: (deviceId: string) => void;
+  onSelectMicrophone?: (deviceId: string) => void;
+  className?: string;
 }
 
-const LS_VIDEO = "prefVideoDeviceId";
-const LS_AUDIO = "prefAudioDeviceId";
+type DeviceInfo = { deviceId: string; label: string };
 
-export default function MediaDeviceBar() {
+export default function MediaDeviceBar({
+  selectedCameraId = null,
+  selectedMicrophoneId = null,
+  onSelectCamera,
+  onSelectMicrophone,
+  className,
+}: MediaDeviceBarProps) {
+  const [cams, setCams] = React.useState<DeviceInfo[]>([]);
+  const [mics, setMics] = React.useState<DeviceInfo[]>([]);
   const [loading, setLoading] = React.useState(false);
-  const [videos, setVideos] = React.useState<MediaDeviceInfoLite[]>([]);
-  const [audios, setAudios] = React.useState<MediaDeviceInfoLite[]>([]);
-  const [videoId, setVideoId] = React.useState<string | undefined>(
-    () => (typeof window !== "undefined" ? localStorage.getItem(LS_VIDEO) || undefined : undefined)
-  );
-  const [audioId, setAudioId] = React.useState<string | undefined>(
-    () => (typeof window !== "undefined" ? localStorage.getItem(LS_AUDIO) || undefined : undefined)
-  );
-
-  // Ask for permissions once so device labels are visible
-  async function warmPermissions() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-      stream.getTracks().forEach((t) => t.stop());
-    } catch {
-      /* ignore - user may decline */
-    }
-  }
-
-  const enumerate = React.useCallback(async () => {
-    if (!navigator.mediaDevices?.enumerateDevices) return;
-    setLoading(true);
-    try {
-      await warmPermissions();
-      const list = await navigator.mediaDevices.enumerateDevices();
-      const v = list.filter(isVideoInput).map(({ deviceId, kind, label }) => ({ deviceId, kind, label }));
-      const a = list.filter(isAudioInput).map(({ deviceId, kind, label }) => ({ deviceId, kind, label }));
-      setVideos(v);
-      setAudios(a);
-
-      // default selections if none saved
-      if (!videoId && v[0]?.deviceId) setVideoId(v[0].deviceId);
-      if (!audioId && a[0]?.deviceId) setAudioId(a[0].deviceId);
-    } finally {
-      setLoading(false);
-    }
-  }, [videoId, audioId]);
 
   React.useEffect(() => {
-    enumerate();
-    const onChange = () => enumerate();
-    navigator.mediaDevices?.addEventListener?.("devicechange", onChange);
-    return () => navigator.mediaDevices?.removeEventListener?.("devicechange", onChange);
-  }, [enumerate]);
+    let active = true;
+    const load = async () => {
+      setLoading(true);
+      try {
+        // Some browsers hide labels until permission was granted at least once
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        if (!active) return;
 
-  // Switch running Agora tracks if publishing
-  async function switchVideo(id: string) {
-    try {
-      const rtc: any = getRtcClient?.();
-      const tracks: any[] = rtc?.localTracks || [];
-      const cam = tracks.find((t) => t?.setDevice && t?.getTrack?.()?.kind === "video");
-      if (cam) await cam.setDevice(id);
-    } catch (e) {
-      // no-op
-      console.warn("video switch error", e);
-    }
-  }
-  async function switchAudio(id: string) {
-    try {
-      const rtc: any = getRtcClient?.();
-      const tracks: any[] = rtc?.localTracks || [];
-      const mic = tracks.find((t) => t?.setDevice && t?.getTrack?.()?.kind === "audio");
-      if (mic) await mic.setDevice(id);
-    } catch (e) {
-      console.warn("audio switch error", e);
-    }
-  }
+        const cameras: DeviceInfo[] = devices
+          .filter((d) => d.kind === "videoinput")
+          .map((d) => ({ deviceId: d.deviceId, label: d.label || "Camera" }));
+
+        const microphones: DeviceInfo[] = devices
+          .filter((d) => d.kind === "audioinput")
+          .map((d) => ({ deviceId: d.deviceId, label: d.label || "Microphone" }));
+
+        setCams(cameras);
+        setMics(microphones);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const handleCameraChange = React.useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      onSelectCamera?.(e.currentTarget.value);
+    },
+    [onSelectCamera]
+  );
+
+  const handleMicrophoneChange = React.useCallback(
+    (e: React.ChangeEvent<HTMLSelectElement>) => {
+      onSelectMicrophone?.(e.currentTarget.value);
+    },
+    [onSelectMicrophone]
+  );
 
   return (
-    <div className="devicebar">
-      <div className="picker">
-        <label className="lbl">Camera</label>
+    <div
+      className={`flex w-full items-center justify-end gap-3 px-2 py-2 ${className ?? ""}`}
+      aria-label="Device selectors"
+    >
+      <label className="flex items-center gap-2 text-sm">
+        <span className="opacity-80">Camera</span>
         <select
-          value={videoId || ""}
-          onChange={async (e) => {
-            const id = e.target.value || undefined;
-            setVideoId(id);
-            if (id) {
-              localStorage.setItem(LS_VIDEO, id);
-              await switchVideo(id);
-            }
-          }}
-          disabled={loading || videos.length === 0}
+          value={selectedCameraId ?? ""}
+          onChange={handleCameraChange}
+          className="min-w-40 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm"
+          disabled={loading || cams.length === 0}
         >
-          {videos.length === 0 && <option value="">No cameras</option>}
-          {videos.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || `Camera ${d.deviceId.slice(0, 6)}`}
+          <option value="" disabled>
+            {loading ? "Loading…" : cams.length ? "Select camera" : "No cameras"}
+          </option>
+          {cams.map((c) => (
+            <option key={c.deviceId} value={c.deviceId}>
+              {c.label || "Camera"}
             </option>
           ))}
         </select>
-      </div>
+      </label>
 
-      <div className="picker">
-        <label className="lbl">Microphone</label>
+      <label className="flex items-center gap-2 text-sm">
+        <span className="opacity-80">Microphone</span>
         <select
-          value={audioId || ""}
-          onChange={async (e) => {
-            const id = e.target.value || undefined;
-            setAudioId(id);
-            if (id) {
-              localStorage.setItem(LS_AUDIO, id);
-              await switchAudio(id);
-            }
-          }}
-          disabled={loading || audios.length === 0}
+          value={selectedMicrophoneId ?? ""}
+          onChange={handleMicrophoneChange}
+          className="min-w-40 rounded-lg border border-neutral-700 bg-neutral-900 px-2 py-1 text-sm"
+          disabled={loading || mics.length === 0}
         >
-          {audios.length === 0 && <option value="">No microphones</option>}
-          {audios.map((d) => (
-            <option key={d.deviceId} value={d.deviceId}>
-              {d.label || `Mic ${d.deviceId.slice(0, 6)}`}
+          <option value="" disabled>
+            {loading ? "Loading…" : mics.length ? "Select mic" : "No microphones"}
+          </option>
+          {mics.map((m) => (
+            <option key={m.deviceId} value={m.deviceId}>
+              {m.label || "Microphone"}
             </option>
           ))}
         </select>
-      </div>
-
-      <button className="btn btn-small" onClick={enumerate} disabled={loading} title="Rescan devices">
-        {loading ? "Scanning…" : "Refresh"}
-      </button>
-
-      <style jsx>{`
-        .devicebar {
-          position: sticky;
-          top: 56px; /* just below your site header */
-          z-index: 30;
-          display: flex;
-          justify-content: center;
-          align-items: center;
-          gap: 12px;
-          padding: 8px 10px;
-          border-bottom: 1px solid var(--edge);
-          background: var(--bg);
-        }
-        .picker {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          background: var(--panel);
-          border: 1px solid var(--edge);
-          padding: 6px 8px;
-          border-radius: 10px;
-        }
-        .lbl {
-          font-size: 12px;
-          font-weight: 700;
-          opacity: 0.8;
-        }
-        select {
-          background: var(--bg);
-          color: var(--text);
-          border: 1px solid var(--edge);
-          border-radius: 8px;
-          padding: 6px 8px;
-          min-width: 200px;
-          outline: none;
-        }
-        .btn {
-          padding: 6px 10px;
-          border-radius: 10px;
-          font-weight: 700;
-          border: 1px solid var(--btn-edge);
-          background: var(--btn);
-          color: var(--text);
-          cursor: pointer;
-        }
-        .btn:disabled {
-          opacity: 0.6;
-          cursor: default;
-        }
-      `}</style>
+      </label>
     </div>
   );
 }

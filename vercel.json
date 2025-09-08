@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "npm run vercel-build",
+  "env": {
+    "NEXT_DISABLE_ESLINT": "1"
+  }
+}

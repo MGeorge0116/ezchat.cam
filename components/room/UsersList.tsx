@@ -1,63 +1,78 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import * as React from "react";
 
-type RoomUser = { id?: string; username: string };
+export interface UsersListProps {
+  room: string;
+  className?: string;
+}
 
-export default function UsersList({ room }: { room: string }) {
-  const [users, setUsers] = useState<RoomUser[]>([]);
-  const timerRef = useRef<number | null>(null);
+type Member = {
+  username: string;
+  isLive?: boolean;
+  muted?: boolean;
+  deafened?: boolean;
+};
 
-  async function fetchUsers() {
-    // Primary: members route driven by your heartbeat
-    const url = `/api/rooms/${encodeURIComponent(room)}/members`;
+type MembersResponse = { users: Member[] } | Member[];
+
+export default function UsersList({ room, className }: UsersListProps) {
+  const [users, setUsers] = React.useState<Member[]>([]);
+  const [loading, setLoading] = React.useState<boolean>(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  const fetchUsers = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
     try {
-      const res = await fetch(url, { cache: "no-store" });
-      if (res.ok) {
-        const json = await res.json();
-        if (Array.isArray(json?.users)) {
-          setUsers(json.users as RoomUser[]);
-          return;
-        }
-      }
-    } catch {}
-    // Fallback: show empty quietly
-    setUsers([]);
-  }
+      const res = await fetch(`/api/rooms/${encodeURIComponent(room)}/members`, {
+        method: "GET",
+        headers: { "Cache-Control": "no-cache" },
+      });
+      if (!res.ok) throw new Error(`Failed to load members (${res.status})`);
+      const data: MembersResponse = await res.json();
 
-  useEffect(() => {
-    fetchUsers();
-    timerRef.current = window.setInterval(fetchUsers, 5000);
-    return () => {
-      if (timerRef.current) window.clearInterval(timerRef.current);
-    };
+      // Accept both shapes: { users: [...] } or [...]
+      const list = Array.isArray(data) ? data : data.users;
+      setUsers(
+        (list ?? []).map((u) => ({
+          username: u.username,
+          isLive: u.isLive ?? false,
+          muted: u.muted ?? false,
+          deafened: u.deafened ?? false,
+        }))
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load users");
+    } finally {
+      setLoading(false);
+    }
   }, [room]);
 
-  if (!users.length) {
-    return (
-      <ul className="space-y-1">
-        <li className="opacity-80 text-[12px]">No one here yet.</li>
-      </ul>
-    );
-  }
+  React.useEffect(() => {
+    void fetchUsers();
+    const id = setInterval(fetchUsers, 10_000); // lightweight polling
+    return () => clearInterval(id);
+  }, [fetchUsers]);
 
   return (
-    <ul className="space-y-1">
-      {users.map((u, i) => (
-        <li
-          key={u.id ?? `${u.username}-${i}`}
-          className="flex items-center gap-1.5 text-[12px] leading-tight"
-          title={u.username}
-        >
-          <span
-            className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_2px_rgba(0,0,0,0.25)]"
-            aria-hidden
-          />
-          <span className="truncate max-w-[calc(var(--user-rail-w,112px)-16px)]">
-            {u.username}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
+    <div className={`flex h-full flex-col ${className ?? ""}`}>
+      {loading && users.length === 0 ? (
+        <div className="py-4 text-center text-sm opacity-70">Loading…</div>
+      ) : error ? (
+        <div className="py-4 text-center text-sm text-red-400">Error: {error}</div>
+      ) : users.length === 0 ? (
+        <div className="py-4 text-center text-sm opacity-70">No users in this room.</div>
+      ) : (
+        <ul className="space-y-1">
+          {users.map((u) => (
+            <li
+              key={u.username}
+              className="flex items-center justify-between rounded-lg px-2 py-1 hover:bg-neutral-800/50"
+              title={u.username}
+            >
+              <span className="truncate text-sm font-medium">
+                {u.username.toUpperCase()}
+              </span>
+              <span className="ml-2 flex shrink-0 items-center gap-2 text-xs opacity-80">
+                {u.is

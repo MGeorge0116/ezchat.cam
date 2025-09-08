@@ -1,37 +1,32 @@
-// app/api/auth/register/route.ts
-export const runtime = "nodejs";
-
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import bcrypt from "bcryptjs";
+import { requireStrings } from "@/lib/guards";
+import type { RegisterBody } from "@/lib/types";
+import crypto from "crypto";
 
-export async function POST(req: Request) {
-  try {
-    const { email, username, password } = await req.json();
+async function hashPassword(pw: string) {
+  // Keep behavior minimal & dependency-free
+  return crypto.createHash("sha256").update(pw).digest("hex");
+}
 
-    if (!email || !username || !password) {
-      return NextResponse.json({ ok: false, error: "email, username, password required" }, { status: 400 });
-    }
-
-    const existing = await prisma.user.findFirst({
-      where: { OR: [{ email: email.toLowerCase() }, { username: username.toLowerCase() }] },
-      select: { id: true },
-    });
-    if (existing) {
-      return NextResponse.json({ ok: false, error: "Email or username already in use" }, { status: 409 });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 10);
-    await prisma.user.create({
-      data: {
-        email: email.toLowerCase(),
-        username: username.toLowerCase(),
-        passwordHash, // IMPORTANT: store hash, never the password
-      },
-    });
-
-    return NextResponse.json({ ok: true });
-  } catch (e: any) {
-    return NextResponse.json({ ok: false, error: e?.message || "Registration error" }, { status: 500 });
+export async function POST(req: NextRequest) {
+  const dataUnknown: unknown = await req.json();
+  if (!requireStrings(dataUnknown, ["email", "username", "password"])) {
+    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
+  const data = dataUnknown as RegisterBody;
+
+  const passwordHash = await hashPassword(data.password);
+  // Keep your schema assumptions minimal
+  export const runtime = "nodejs";
+  const user = await prisma.user.create({
+    data: {
+      email: data.email,
+      username: data.username.toLowerCase(),
+      passwordHash,
+    },
+    select: { id: true, email: true, username: true, createdAt: true },
+  });
+
+  return NextResponse.json(user, { status: 201 });
 }

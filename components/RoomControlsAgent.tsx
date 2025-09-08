@@ -59,7 +59,7 @@ export default function RoomControlsAgent() {
       usernameRef.current = "GUEST";
     }
 
-    let cleanupFns: Array<() => void> = [];
+    const cleanupFns  = [];
     let btnBroadcast: HTMLButtonElement | null = null;
     let btnCam: HTMLButtonElement | null = null;
     let btnMic: HTMLButtonElement | null = null;
