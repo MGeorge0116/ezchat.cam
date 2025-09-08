@@ -22,10 +22,7 @@ function getRedis(): Redis | null {
   return new Redis(url, needsTLS ? { tls: { rejectUnauthorized: false } } : undefined);
 }
 
-/**
- * Minimal upsert so the API route compiles.
- * Stores room metadata in Redis when available; otherwise no-ops and returns the payload.
- */
+/** Minimal upsert used by /api/rooms/upsert; safe without Redis */
 export async function upsertRoom(input: RoomMeta) {
   const username = String(input.username || "").trim().toLowerCase();
   if (!username) return { ok: false, error: "username required" };
@@ -39,13 +36,15 @@ export async function upsertRoom(input: RoomMeta) {
     isLive: !!input.isLive,
     watching: Number(input.watching ?? 0),
     broadcasters: Number(input.broadcasters ?? 0),
-    lastSeen: Date.now()
+    lastSeen: Date.now(),
   };
 
   if (r) {
     const key = `room:meta:${username}`;
-    await r.set(key, JSON.stringify(payload), "EX", 60 * 60); // 1h TTL
+    await r.set(key, JSON.stringify(payload), "EX", 3600);
   }
-  // If no Redis, we still return success so the route works without DB.
   return { ok: true, room: payload };
 }
+
+/* Also export default so either import style works */
+export default { upsertRoom };
