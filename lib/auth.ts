@@ -8,24 +8,14 @@ export const authOptions: NextAuthOptions = {
       credentials: { username: { label: "Username", type: "text" } },
       async authorize(credentials) {
         const username = credentials?.username?.trim().toLowerCase();
-        if (!username) return null;
-        // Accept any username for testing; return a simple user object.
-        return { id: username, name: username };
+        return username ? { id: username, name: username } : null;
       },
     }),
   ],
   session: { strategy: "jwt" },
   callbacks: {
-    async jwt({ token, user }) {
-      if (user?.name) token.name = user.name;
-      return token;
-    },
-    async session({ session, token }) {
-      if (token?.name) {
-        session.user = { name: token.name } as any;
-      }
-      return session;
-    },
+    async jwt({ token, user }) { if (user?.name) token.name = user.name; return token; },
+    async session({ session, token }) { if (token?.name) (session as any).user = { name: token.name }; return session; },
   },
   secret: process.env.NEXTAUTH_SECRET,
 };

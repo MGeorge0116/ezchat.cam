@@ -1,5 +1,6 @@
+const path = require("path");
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-  reactStrictMode: true
+module.exports = {
+  reactStrictMode: true,
+  outputFileTracingRoot: path.resolve(__dirname),
 };
-module.exports = nextConfig;
