@@ -1,4 +1,4 @@
-/** Tailwind CSS v4 PostCSS plugin */
+// postcss.config.mjs
 export default {
   plugins: {
     "@tailwindcss/postcss": {},
