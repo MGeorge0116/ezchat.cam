@@ -46,5 +46,5 @@ export async function upsertRoom(input: RoomMeta) {
   return { ok: true, room: payload };
 }
 
-/* Also export default so either import style works */
+/* default export too (covers any default-import usage) */
 export default { upsertRoom };
