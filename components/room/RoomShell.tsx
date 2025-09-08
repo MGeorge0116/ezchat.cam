@@ -19,7 +19,7 @@ export default function RoomShell({ roomName }: Props) {
         <UsersList room={room} />
       </aside>
 
-      {/* Middle: Devices + Video + Controls */}
+      {/* Middle: Device selectors + Video + Controls */}
       <main className="flex-1 flex flex-col gap-3">
         <DeviceSelectors room={room} />
         <div className="rounded-lg border bg-card p-3">
