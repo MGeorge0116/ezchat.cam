@@ -9,7 +9,10 @@
     "vercel-build": "next build"
   },
   "dependencies": {
+    "agora-access-token": "^2.0.4",
+    "agora-token": "^2.0.5",
     "autoprefixer": "^10.4.20",
+    "bcryptjs": "^3.0.2",
     "ioredis": "^5.4.1",
     "next": "15.5.2",
     "next-auth": "^4.24.11",
@@ -20,6 +23,7 @@
     "tailwindcss": "^3.4.13"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "typescript": "^5.6.3"
   }
 }
