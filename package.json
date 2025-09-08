@@ -8,22 +8,20 @@
     "start": "next start -p 3000",
     "vercel-build": "next build"
   },
-  "dependencies": {
-    "agora-access-token": "^2.0.4",
-    "agora-token": "^2.0.5",
-    "autoprefixer": "^10.4.20",
-    "bcryptjs": "^3.0.2",
-    "ioredis": "^5.4.1",
-    "next": "15.5.2",
-    "next-auth": "^4.24.11",
-    "next-themes": "^0.4.6",
-    "postcss": "^8.4.39",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "tailwindcss": "^3.4.13"
-  },
-  "devDependencies": {
-    "@types/bcryptjs": "^2.4.6",
-    "typescript": "^5.6.3"
-  }
+"dependencies": {
+  "agora-access-token": "^2.0.4",
+  "agora-token": "^2.0.1",
+  "bcryptjs": "^2.4.3",
+  "ioredis": "^5.4.1",
+  "next": "15.5.2",
+  "postcss": "^8.4.39",
+  "react": "18.3.1",
+  "react-dom": "18.3.1",
+  "tailwindcss": "^3.4.13",
+  "autoprefixer": "^10.4.20"
+},
+"devDependencies": {
+  "@types/bcryptjs": "^2.4.6",
+  "typescript": "^5.6.3"
+}
 }
