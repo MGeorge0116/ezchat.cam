@@ -1,8 +1,13 @@
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextRequest } from "next/server";
 import { subscribeChat } from "@/lib/server/chat";
-import { pickString } from "@/lib/guards";
 
-export const runtime = "edge"; // good for SSE
+type WithSignal = { signal: AbortSignal };
+function hasSignal(x: unknown): x is WithSignal {
+  return typeof x === "object" && x !== null && "signal" in x;
+}
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -17,21 +22,18 @@ export async function GET(req: NextRequest) {
       const send = (data: unknown) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
+
       const unsub = subscribeChat(room, send);
-
-      // Optional: greet with username if passed
-      const username = pickString(Object.fromEntries(searchParams), "username");
-      if (username) send({ type: "hello", username });
-
       controller.enqueue(encoder.encode(`event: ready\ndata: {}\n\n`));
 
       const close = () => {
-        unsub();
-        controller.close();
+        try { unsub(); } catch {}
+        try { controller.close(); } catch {}
       };
-      // disconnect handling
-      // @ts-expect-error: web runtime close reason
-      req.signal?.addEventListener("abort", close);
+
+      if (hasSignal(req)) {
+        req.signal.addEventListener("abort", close, { once: true });
+      }
     },
   });
 
