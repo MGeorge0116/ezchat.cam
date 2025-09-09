@@ -1,7 +1,12 @@
+export const runtime = "nodejs"; // <-- TOP LEVEL
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireStrings } from "@/lib/guards";
 import type { VerifyAgeBody } from "@/lib/types";
+
+
 
 export async function POST(req: NextRequest) {
   const bodyUnknown: unknown = await req.json();
@@ -9,7 +14,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid body" }, { status: 400 });
   }
   const body = bodyUnknown as VerifyAgeBody;
-export const runtime = "nodejs";
+
   const user = await prisma.user.update({
     where: { id: body.userId },
     data: { ageVerifiedAt: new Date() },
@@ -18,3 +23,4 @@ export const runtime = "nodejs";
 
   return NextResponse.json(user);
 }
+
