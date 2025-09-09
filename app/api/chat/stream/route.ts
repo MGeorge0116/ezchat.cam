@@ -1,8 +1,8 @@
 // app/api/chat/stream/route.ts
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
 
 import { NextRequest } from 'next/server';
-import { subscribeChat } from '@/lib/server/chat';
 
 type WithSignal = { signal: AbortSignal };
 function hasSignal(x: unknown): x is WithSignal {
@@ -10,6 +10,9 @@ function hasSignal(x: unknown): x is WithSignal {
 }
 
 export async function GET(req: NextRequest) {
+  // ⬇️ Lazy-load to prevent Edge bundling of ioredis dependencies
+  const { subscribeChat } = await import('@/lib/server/chat');
+
   const { searchParams } = new URL(req.url);
   const room = searchParams.get('room');
   if (!room) return new Response('Missing room', { status: 400 });
@@ -17,16 +20,16 @@ export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
+
       const send = (data: unknown) => {
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
       };
-      const unsub = subscribeChat(room, send);
 
+      const unsub = subscribeChat(room, send);
       controller.enqueue(encoder.encode(`event: ready\ndata: {}\n\n`));
 
       const close = () => {
-        unsub();
-        controller.close();
+        try { unsub(); } finally { controller.close(); }
       };
 
       if (hasSignal(req)) {
