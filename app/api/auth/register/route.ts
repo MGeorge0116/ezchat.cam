@@ -1,11 +1,15 @@
+export const runtime = "nodejs"; // <-- TOP LEVEL
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireStrings } from "@/lib/guards";
 import type { RegisterBody } from "@/lib/types";
 import crypto from "crypto";
 
+
+
 async function hashPassword(pw: string) {
-  // Keep behavior minimal & dependency-free
   return crypto.createHash("sha256").update(pw).digest("hex");
 }
 
@@ -17,8 +21,7 @@ export async function POST(req: NextRequest) {
   const data = dataUnknown as RegisterBody;
 
   const passwordHash = await hashPassword(data.password);
-  // Keep your schema assumptions minimal
-  export const runtime = "nodejs";
+
   const user = await prisma.user.create({
     data: {
       email: data.email,
