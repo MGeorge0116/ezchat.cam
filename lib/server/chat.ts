@@ -1,59 +1,38 @@
-import {
-  storeChatAdd,
-  storeChatHistory,
-  type StoredChatMessage,
-} from "@/lib/server/store";
+// lib/server/chat.ts
+import type IORedis from 'ioredis';
 
-export type ChatMessage = StoredChatMessage;
+let redis: IORedis | null = null;
 
-type ChatState = {
-  rooms: Map<string, ChatMessage[]>;
-  subs: Map<string, Set<(msg: ChatMessage) => void>>;
-  maxPerRoom: number;
-};
-
-const g = (globalThis as any);
-if (!g.__chatState) {
-  g.__chatState = { rooms: new Map(), subs: new Map(), maxPerRoom: 200 } as ChatState;
+async function getRedis() {
+  if (!redis) {
+    const { default: Redis } = await import('ioredis'); // ⬅️ lazy import
+    redis = new Redis(process.env.REDIS_URL!);
+  }
+  return redis;
 }
-const state: ChatState = g.__chatState;
-const keyRoom = (r: string) => r.toLowerCase();
 
-export async function addMessage(
+export function subscribeChat(
   room: string,
-  username: string,
-  text: string,
-  clientId?: string
-): Promise<ChatMessage> {
-  const rkey = keyRoom(room);
-  const id = clientId || `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-  const msg: ChatMessage = { id, room: rkey, username: username.toLowerCase(), text, ts: Date.now() };
+  onMessage: (data: unknown) => void
+) {
+  // use a separate sub connection
+  let cleanup: (() => Promise<void> | void) | null = null;
 
-  await storeChatAdd(rkey, msg);
+  (async () => {
+    const base = await getRedis();
+    const sub = base.duplicate();
+    await sub.subscribe(`room:${room}`);
 
-  if (!state.rooms.has(rkey)) state.rooms.set(rkey, []);
-  const list = state.rooms.get(rkey)!;
-  list.push(msg);
-  if (list.length > state.maxPerRoom) list.splice(0, list.length - state.maxPerRoom);
+    const handler = (_ch: string, msg: string) => {
+      try { onMessage(JSON.parse(msg)); } catch { /* ignore bad JSON */ }
+    };
+    sub.on('message', handler);
 
-  const subs = state.subs.get(rkey);
-  if (subs) for (const cb of subs) { try { cb(msg); } catch {} }
+    cleanup = async () => {
+      sub.off('message', handler);
+      try { await sub.unsubscribe(`room:${room}`); } finally { sub.quit(); }
+    };
+  })().catch(() => { /* swallow init errors here; surface in caller if needed */ });
 
-  return msg;
-}
-
-export async function getHistory(room: string, limit = 100): Promise<ChatMessage[]> {
-  const rkey = keyRoom(room);
-  const fromRedis = await storeChatHistory(rkey, limit);
-  if (fromRedis.length > 0) return fromRedis;
-  const list = state.rooms.get(rkey) || [];
-  return list.slice(Math.max(0, list.length - Math.max(1, Math.min(limit, 1000))));
-}
-
-export function subscribeChat(room: string, cb: (msg: ChatMessage) => void): () => void {
-  const rkey = keyRoom(room);
-  if (!state.subs.has(rkey)) state.subs.set(rkey, new Set());
-  const set = state.subs.get(rkey)!;
-  set.add(cb);
-  return () => set.delete(cb);
+  return () => { if (cleanup) cleanup(); };
 }
