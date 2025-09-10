@@ -1,5 +1,7 @@
 // lib/server/chat.ts
 import type IORedis from "ioredis";
+// lib/server/chat.ts (and lib/server/store.ts if you have it)
+import "server-only";
 
 let redis: IORedis | null = null;
 async function getRedis() {
