@@ -3,7 +3,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import VideoStage, { VideoStageHandle } from "@/components/Room/VideoStage"
-import UserList from "@/components/Room/UserList"
+import UserList from "@/components/room/UsersList"
 import ChatPane from "@/components/Room/ChatPane"
 import ControlsBar from "@/components/Room/ControlsBar"
 import { getToken } from "@/lib/agora"
