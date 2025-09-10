@@ -2,7 +2,10 @@
 
 import * as React from 'react';
 
-type Props = { room: string };
+type Props = {
+  room: string;
+  joined?: boolean; // NEW
+};
 
 type PresenceUser = {
   username: string;
@@ -14,15 +17,16 @@ type PresenceResponse = {
   users: PresenceUser[];
 };
 
-export default function UsersList({ room }: Props) {
+export default function UsersList({ room, joined = true }: Props) {
   const [users, setUsers] = React.useState<PresenceUser[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   const fetchUsers = React.useCallback(async () => {
     try {
-      const res = await fetch(`/api/presence/list?room=${encodeURIComponent(room)}`, {
-        cache: 'no-store',
-      });
+      const res = await fetch(
+        `/api/presence/list?room=${encodeURIComponent(room)}`,
+        { cache: 'no-store' }
+      );
       if (!res.ok) throw new Error('Failed to load presence');
       const data = (await res.json()) as PresenceResponse;
       setUsers(Array.isArray(data?.users) ? data.users : []);
@@ -34,11 +38,22 @@ export default function UsersList({ room }: Props) {
   }, [room]);
 
   React.useEffect(() => {
+    // Don’t poll until we’ve actually joined
+    if (!joined) {
+      setLoading(false);
+      setUsers([]);
+      return;
+    }
+
     setLoading(true);
     fetchUsers();
     const id = setInterval(fetchUsers, 15_000);
     return () => clearInterval(id);
-  }, [fetchUsers]);
+  }, [fetchUsers, joined]);
+
+  if (!joined) {
+    return <div className="p-3 text-sm opacity-70">Join to see who’s here.</div>;
+  }
 
   if (loading && users.length === 0) {
     return <div className="p-3 text-sm opacity-70">Loading users…</div>;
@@ -51,8 +66,10 @@ export default function UsersList({ room }: Props) {
   return (
     <ul className="p-3 space-y-2">
       {users.map((u) => {
-        const lastSeen = new Date(u.lastSeen);
-        const last = isNaN(+lastSeen) ? '' : lastSeen.toLocaleTimeString();
+        const lastSeenDate = new Date(u.lastSeen);
+        const last =
+          isNaN(+lastSeenDate) ? '' : lastSeenDate.toLocaleTimeString();
+
         return (
           <li
             key={u.username}
@@ -67,8 +84,15 @@ export default function UsersList({ room }: Props) {
               />
               <span className="font-medium">{u.username}</span>
             </span>
+
             <span className="ml-2 flex shrink-0 items-center gap-2 text-xs opacity-80">
-              {last && <span>Last seen: {last}</span>}
+              {!u.isLive && last ? (
+                <span className="tabular-nums" title={`Last seen ${last}`}>
+                  {last}
+                </span>
+              ) : (
+                <span>live</span>
+              )}
             </span>
           </li>
         );
