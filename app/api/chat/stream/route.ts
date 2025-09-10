@@ -1,4 +1,3 @@
-// ⬅️ FORCE NODE so ioredis deps (crypto/stream/dns) are available
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -10,8 +9,7 @@ function hasSignal(x: unknown): x is WithSignal {
 }
 
 export async function GET(req: NextRequest) {
-  // ⬇️ Lazy import so bundler doesn't try to include ioredis in an Edge graph
-  const { subscribeChat } = await import("@/lib/server/chat");
+  const { subscribeChat } = await import("@/lib/server/chat"); // lazy import!
 
   const { searchParams } = new URL(req.url);
   const room = searchParams.get("room");
@@ -20,19 +18,14 @@ export async function GET(req: NextRequest) {
   const stream = new ReadableStream({
     start(controller) {
       const encoder = new TextEncoder();
-      const send = (data: unknown) => {
+      const send = (data: unknown) =>
         controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
-      };
-      const unsub = subscribeChat(room, send);
 
+      const unsub = subscribeChat(room, send);
       controller.enqueue(encoder.encode(`event: ready\ndata: {}\n\n`));
 
-      const close = () => {
-        try { unsub(); } finally { controller.close(); }
-      };
-      if (hasSignal(req)) {
-        req.signal.addEventListener("abort", close);
-      }
+      const close = () => { try { unsub(); } finally { controller.close(); } };
+      if (hasSignal(req)) req.signal.addEventListener("abort", close);
     },
   });
 
@@ -40,7 +33,7 @@ export async function GET(req: NextRequest) {
     headers: {
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache, no-transform",
-      "Connection": "keep-alive",
+      Connection: "keep-alive",
     },
   });
 }
