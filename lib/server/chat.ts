@@ -3,6 +3,8 @@ import type IORedis from "ioredis";
 // lib/server/chat.ts (and lib/server/store.ts if you have it)
 import "server-only";
 
+import type IORedis from "ioredis";
+
 let redis: IORedis | null = null;
 async function getRedis() {
   if (!redis) {
@@ -12,25 +14,22 @@ async function getRedis() {
   return redis;
 }
 
-export function subscribeChat(
-  room: string,
-  onMessage: (data: unknown) => void
-) {
-  let cleanup: (() => void | Promise<void>) | null = null;
+export function subscribeChat(room: string, onMessage: (data: unknown) => void) {
+  let cleanup: null | (() => void | Promise<void>) = null;
 
   (async () => {
     const base = await getRedis();
     const sub = base.duplicate();
     await sub.subscribe(`room:${room}`);
     const handler = (_ch: string, msg: string) => {
-      try { onMessage(JSON.parse(msg)); } catch { /* ignore */ }
+      try { onMessage(JSON.parse(msg)); } catch {}
     };
     sub.on("message", handler);
     cleanup = async () => {
       sub.off("message", handler);
       try { await sub.unsubscribe(`room:${room}`); } finally { sub.quit(); }
     };
-  })().catch(() => { /* swallow init errors for now */ });
+  })().catch(() => {});
 
   return () => { if (cleanup) cleanup(); };
 }
