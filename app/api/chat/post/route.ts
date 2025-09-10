@@ -1,19 +1,19 @@
+// app/api/chat/post/route.ts
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 import { NextRequest, NextResponse } from "next/server";
-import { requireStrings } from "@/lib/guards";
-import type { ChatPostBody, ChatMessage } from "@/lib/types";
-import { appendMessage } from "@/lib/server/chat";
+
+type Body = { room?: string; username?: string; text?: string };
 
 export async function POST(req: NextRequest) {
-  const bodyUnknown: unknown = await req.json();
-  if (!requireStrings(bodyUnknown, ["room", "username", "text"])) {
-    return NextResponse.json({ error: "Invalid body" }, { status: 400 });
+  const body = (await req.json()) as Body;
+  if (!body?.room || !body?.username || !body?.text) {
+    return NextResponse.json({ error: "room, username, and text are required" }, { status: 400 });
   }
-  const body = bodyUnknown as ChatPostBody;
 
-  const msg: ChatMessage = await appendMessage(body.room, {
-    username: body.username,
-    text: body.text,
-  });
-
-  return NextResponse.json(msg, { status: 201 });
+  const { appendMessage } = await import("@/lib/server/chat"); // lazy import
+  const msg = await appendMessage(body.room, body.username, body.text);
+  // 202 Accepted so the client doesn’t wait on subscribers
+  return NextResponse.json({ ok: true, message: msg }, { status: 202 });
 }
