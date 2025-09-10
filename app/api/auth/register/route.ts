@@ -1,13 +1,12 @@
-export const runtime = "nodejs"; // <-- TOP LEVEL
-export const dynamic = 'force-dynamic';
+// ⬅️ MUST be top-level and first thing in the file
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireStrings } from "@/lib/guards";
 import type { RegisterBody } from "@/lib/types";
 import crypto from "crypto";
-
-
 
 async function hashPassword(pw: string) {
   return crypto.createHash("sha256").update(pw).digest("hex");
